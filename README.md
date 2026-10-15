@@ -10,6 +10,7 @@ macOS 14 or later, Swift 5.10 or later.
 ```
 swift build -c release
 .build/release/karmic                  # run it; the first chord starts the band
+karmic --gm --config examples/general-midi.json   # also hear it on macOS's built-in GM synth
 karmic ctl scene jazz                  # steer it while it runs
 karmic render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it silently
 ```
@@ -42,6 +43,7 @@ karmic ctl scene [name or number]
 karmic ctl chord Dm9                   # as if you had played it
 karmic ctl set bass.density 0.4        # any part setting from the config
 karmic ctl mute arp | unmute arp | toggle pad
+karmic render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built-in GM synth) and note data
 karmic chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
 karmic ports                           # MIDI sources and destinations
 karmic init                            # write the standard config to edit
@@ -61,6 +63,8 @@ steer the band: a controller script, Hammerspoon, a shell alias.
   destination by name (see `karmic ports`)
 - `parts`: name, kind (`bass`, `comp` or `arp`), style, output, channel, range, density,
   complexity, velocity, voices, swing, loop length, variation…
+- `program`: a part setting (1-128) sent as a program change when the band starts and when
+  a scene changes it. `examples/general-midi.json` uses it to pick General MIDI sounds per scene.
 - `scenes`: per-part overrides, plus tempo and swing
 - `clockOut`: outputs that get MIDI clock and start/stop, so a drum machine follows the band
 

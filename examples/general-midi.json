@@ -1,0 +1,229 @@
+{
+  "tempo": 98,
+  "swing": 54,
+  "inputs": [
+    {
+      "port": "USB MIDI Device",
+      "channel": 1,
+      "zone": [
+        0,
+        64
+      ]
+    },
+    {
+      "port": "Launchpad Music",
+      "channel": 1
+    }
+  ],
+  "latch": true,
+  "autoStart": true,
+  "outputs": [
+    {
+      "name": "karmic",
+      "port": "virtual"
+    }
+  ],
+  "clockOut": [],
+  "parts": [
+    {
+      "name": "bass",
+      "kind": "bass",
+      "style": "funk",
+      "out": "karmic",
+      "channel": 2
+    },
+    {
+      "name": "keys",
+      "kind": "comp",
+      "style": "stabs",
+      "out": "karmic",
+      "channel": 3
+    },
+    {
+      "name": "arp",
+      "kind": "arp",
+      "style": "broken",
+      "out": "karmic",
+      "channel": 4
+    },
+    {
+      "name": "pad",
+      "kind": "comp",
+      "style": "pad",
+      "out": "karmic",
+      "channel": 5,
+      "range": [
+        48,
+        84
+      ],
+      "voices": 5,
+      "complexity": 0.8,
+      "velocity": [
+        45,
+        70
+      ],
+      "mute": true
+    }
+  ],
+  "scenes": [
+    {
+      "name": "funk",
+      "swing": 56,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "funk",
+          "program": 34
+        },
+        "keys": {
+          "style": "stabs",
+          "mute": false,
+          "program": 8
+        },
+        "arp": {
+          "style": "broken",
+          "mute": false,
+          "program": 82
+        },
+        "pad": {
+          "mute": true,
+          "program": 90
+        }
+      },
+      "tempo": 98
+    },
+    {
+      "name": "house",
+      "swing": 52,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "octaves",
+          "program": 39
+        },
+        "keys": {
+          "style": "offbeat",
+          "mute": false,
+          "program": 1
+        },
+        "arp": {
+          "style": "up16",
+          "mute": false,
+          "program": 81
+        },
+        "pad": {
+          "mute": false,
+          "program": 90
+        }
+      },
+      "tempo": 122
+    },
+    {
+      "name": "jazz",
+      "swing": 64,
+      "feel": 8,
+      "parts": {
+        "bass": {
+          "style": "walk",
+          "program": 33
+        },
+        "keys": {
+          "style": "charleston",
+          "mute": false,
+          "program": 5
+        },
+        "arp": {
+          "mute": true,
+          "program": 12
+        },
+        "pad": {
+          "mute": true,
+          "program": 90
+        }
+      },
+      "tempo": 132
+    },
+    {
+      "name": "bossa",
+      "swing": 50,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "bossa",
+          "program": 33
+        },
+        "keys": {
+          "style": "bossa",
+          "mute": false,
+          "program": 25
+        },
+        "arp": {
+          "style": "updown8",
+          "density": 0.4,
+          "mute": false,
+          "program": 74
+        },
+        "pad": {
+          "mute": true,
+          "program": 90
+        }
+      },
+      "tempo": 128
+    },
+    {
+      "name": "ballad",
+      "swing": 50,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "rootfive",
+          "density": 0.5,
+          "program": 36
+        },
+        "keys": {
+          "style": "ballad",
+          "mute": false,
+          "program": 1
+        },
+        "arp": {
+          "style": "updown8",
+          "density": 0.5,
+          "mute": false,
+          "program": 47
+        },
+        "pad": {
+          "mute": false,
+          "program": 49
+        }
+      },
+      "tempo": 72
+    },
+    {
+      "name": "drive",
+      "swing": 50,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "pedal",
+          "program": 39
+        },
+        "keys": {
+          "style": "gate",
+          "mute": false,
+          "program": 91
+        },
+        "arp": {
+          "style": "random",
+          "mute": false,
+          "program": 82
+        },
+        "pad": {
+          "mute": true,
+          "program": 90
+        }
+      },
+      "tempo": 120
+    }
+  ],
+  "startScene": "funk"
+}

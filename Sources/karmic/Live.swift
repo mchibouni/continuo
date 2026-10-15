@@ -32,6 +32,7 @@ final class Live: Sink {
     var connected = Set<MIDIEndpointRef>()
     let list = UnsafeMutablePointer<MIDIEventList>.allocate(capacity: 1)
     let logQueue = DispatchQueue(label: "karmic.log")
+    var gm: GeneralMIDI? = nil   // also play the parts on the built-in synth
 
     init(config: Config) throws {
         self.config = config
@@ -61,6 +62,7 @@ final class Live: Sink {
         } else if targets[output] != 0 {
             MIDISendEventList(outPort, targets[output], list)
         }
+        gm?.send(bytes)
     }
 
     func start() throws {

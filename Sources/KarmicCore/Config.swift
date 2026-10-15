@@ -29,6 +29,7 @@ public struct PartSpec: Codable {
     public var legato: Bool?         // mono notes overlap a little, for glide
     public var retrigger: Bool?      // a held note changes when the chord does
     public var rootless: Bool?       // comp: leave the root to the bass
+    public var program: Int?         // 1-128: a program change sent when the band starts
 }
 
 public struct InputSpec: Codable {

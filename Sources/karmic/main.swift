@@ -7,10 +7,12 @@ import KarmicCore
 setvbuf(stdout, nil, _IOLBF, 0)
 
 let help = """
-karmic                      run the band (play a chord to start it)
+karmic [--gm]               run the band (play a chord to start it); --gm also plays it on the
+                            built-in General MIDI synth, to hear it with no synths attached
 karmic render <chords>      rehearse a progression silently: bar-by-bar notes, checks, --out file.mid
                             options: --scene <name> --bars <per chord> --loops <n> --tempo <bpm>
                             --late <ms> (the player's timing, negative = early) --roll <ms between a chord's notes, 4>
+                            --audio <file.m4a> (render on the built-in General MIDI synth) --json <file>
 karmic ctl <command>        talk to the running band:
     start | stop | panic | status
     tempo <bpm> | swing <50-75> | feel <8|16>
@@ -59,14 +61,20 @@ func loadConfig(quiet: Bool = false) -> Config {
     do { return try Config.load(url) } catch { fail("\(url.path): \(error)") }
 }
 
-let command = args.first ?? "run"
-if !args.isEmpty { args.removeFirst() }
+// options alone (karmic --gm) mean run
+let command = args.first.map { $0.hasPrefix("--") ? "run" : $0 } ?? "run"
+if args.first == command { args.removeFirst() }
 
 switch command {
 case "run":
     let config = loadConfig()
     let live: Live
     do { live = try Live(config: config) } catch { fail("\(error)") }
+    if args.contains("--gm") {
+        do { live.gm = try GeneralMIDI() } catch { fail("the built-in synth didn't start: \(error)") }
+        live.gm!.choosePrograms(live.engine.parts)
+        print("also playing on the built-in General MIDI synth, through the default audio output")
+    }
     do { try serveControl { live.control($0) } } catch { fail("\(error)") }
     do { try live.start() } catch { fail("\(error)") }
     print(live.engine.status())
@@ -82,7 +90,7 @@ case "run":
 
 case "render":
     var config = loadConfig(quiet: true)
-    let scene = option("--scene"), out = option("--out")
+    let scene = option("--scene"), out = option("--out"), audio = option("--audio"), json = option("--json")
     let bars = Int(option("--bars") ?? "1") ?? 1, loops = Int(option("--loops") ?? "1") ?? 1
     let late = (Double(option("--late") ?? "0") ?? 0) / 1000
     let roll = (Double(option("--roll") ?? "4") ?? 4) / 1000
@@ -100,6 +108,14 @@ case "render":
         if let out {
             try r.midiFile.write(to: URL(fileURLWithPath: (out as NSString).expandingTildeInPath))
             print("wrote \(out)")
+        }
+        if let json {
+            try r.json.write(to: URL(fileURLWithPath: (json as NSString).expandingTildeInPath))
+            print("wrote \(json)")
+        }
+        if let audio {
+            try GeneralMIDI.render(r, to: URL(fileURLWithPath: (audio as NSString).expandingTildeInPath))
+            print("wrote \(audio) (the built-in General MIDI synth)")
         }
         exit(problems.isEmpty ? 0 : 2)
     } catch { fail("\(error)") }

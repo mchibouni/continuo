@@ -41,6 +41,7 @@ public final class Part {
     public internal(set) var velLo = 60, velHi = 105, voices = 4, span = 2, octave = 0, loop = 2
     public internal(set) var seed: UInt64 = 1
     public internal(set) var mute = false, mono = false, legato = false, retrigger = true, rootless = false
+    public internal(set) var program: Int? = nil
 
     var counter = 0, loopIndex = -1
     var lastNote: Int? = nil
@@ -58,7 +59,7 @@ public final class Part {
     func reset() {
         style = styles.first { $0.kind == kind }!
         density = 0.75; accent = 0.5; vary = 0; humanize = 4; gate = nil; swing = nil; feel = nil
-        octave = 0; loop = 2; mute = false; legato = false
+        octave = 0; loop = 2; mute = false; legato = false; program = nil
         seed = name.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
         switch kind {
         case .bass:
@@ -239,14 +240,19 @@ public final class Engine {
         if let v = s.legato { p.legato = v }
         if let v = s.retrigger { p.retrigger = v }
         if let v = s.rootless { p.rootless = v }
+        if let v = s.program {
+            guard (1...128).contains(v) else { throw ConfigError("\(p.name): program \(v) is not 1-128") }
+            p.program = v
+        }
     }
 
     /// Changes a part, ending what it plays if it moves channel or output or goes quiet.
     func change(_ i: Int, at t: Double, _ body: () throws -> Void) rethrows {
-        let p = parts[i], before = (p.output, p.channel, p.mute, p.style.name)
+        let p = parts[i], before = (p.output, p.channel, p.mute, p.style.name), program = p.program
         try body()
         if before != (p.output, p.channel, p.mute, p.style.name) { endPart(i, at: t) }
         if before.3 != p.style.name { p.counter = 0; p.loopIndex = -1 }
+        if running && (program != p.program || before.0 != p.output || before.1 != p.channel) { sendProgram(i, at: t) }
     }
 
     func applyScene(_ name: String, at t: Double) throws {
@@ -554,8 +560,14 @@ public final class Engine {
         running = true
         (anchorTime, anchorStep, nextStep) = (t, 0, 0)
         for p in parts { (p.counter, p.loopIndex, p.last, p.lastNote, p.voicing) = (0, -1, nil, nil, []) }
+        for i in parts.indices { sendProgram(i, at: t) }
         for o in clockOutputs { sink.send([0xFA], output: o, at: t, part: -1) }
         onLog("start, \(fmt(tempo)) BPM")
+    }
+
+    func sendProgram(_ i: Int, at t: Double) {
+        let p = parts[i]
+        if let program = p.program { sink.send([0xC0 | UInt8(p.channel), UInt8(program - 1)], output: p.output, at: t, part: i) }
     }
 
     public func stop(at t: Double) {

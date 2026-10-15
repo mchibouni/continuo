@@ -115,6 +115,30 @@ extension Rehearsal {
         return problems
     }
 
+    /// Every note with its start and length (seconds from the band's start), the chords and the
+    /// parts, for drawing a piano roll.
+    public var json: Data {
+        let e = engine
+        var open: [Int: (t: Double, v: Int, part: Int)] = [:], notes: [[String: Any]] = []
+        func r3(_ x: Double) -> Double { (x * 1000).rounded() / 1000 }
+        for m in recorder.messages where m.part >= 0 {
+            let status = m.bytes[0] & 0xF0
+            guard status == 0x90 || status == 0x80 else { continue }
+            let key = m.output * 2048 + Int(m.bytes[0] & 0x0F) * 128 + Int(m.bytes[1])
+            if status == 0x90 { open[key] = (m.time, Int(m.bytes[2]), m.part) }
+            else if let o = open.removeValue(forKey: key) {
+                notes.append(["p": o.part, "n": Int(m.bytes[1]), "t": r3(o.t - start), "d": r3(m.time - o.t), "v": o.v])
+            }
+        }
+        let object: [String: Any] = [
+            "tempo": e.tempo, "bar": r3(Double(e.stepsPerBar) * e.stepDuration), "length": r3(end - start),
+            "parts": e.parts.map { ["name": $0.name, "kind": $0.kind.rawValue, "style": $0.style.name] },
+            "chords": chords.map { ["t": r3(max(0, $0.time - start)), "name": $0.chord.description] },
+            "notes": notes,
+        ]
+        return try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
+
     /// A type 1 MIDI file: a conductor track with the tempo and the chords as markers, then one
     /// track per part.
     public var midiFile: Data {
