@@ -62,6 +62,8 @@ continuo ctl chord Dm9                   # as if you had played it
 continuo ctl set bass.density 0.4        # any part setting from the config
 continuo ctl mute arp | unmute arp | toggle pad
 continuo render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built-in GM synth) and note data
+continuo render Am7 D9 Gmaj7 --scene funk --sounds examples/arturia-sounds.json --audio a.m4a   # through your plugins
+continuo sounds                          # the instrument plugins a render can use
 continuo chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
 continuo mine --tag jazz ~/MIDI/jazz --tag soul ~/MIDI/soul   # build the voicing bank
 continuo voicings Dm9 G13 --tag jazz     # what the bank plays for some chords
@@ -120,6 +122,14 @@ so the bass part can play the pianist's own line. Only 4/4 for now.
 The bank is built from your own MIDI files and stays on your machine: most commercial MIDI
 packs allow use in your music but not sharing the files, and a bank is close enough to them
 that it shouldn't be shared either.
+
+## Rendering through your instruments
+
+`render --sounds <file>` plays a rehearsal through instrument plugins instead of the built-in
+General MIDI synth, one plugin per part, chosen per scene (`examples/arturia-sounds.json` uses
+Arturia's V Collection; `"gm"` keeps a part on the built-in synth). Plugins play the patch they
+open with and never get program changes. macOS only shows third-party plugins to processes in
+your login session, so run it from a normal terminal; `continuo sounds` lists what it can see.
 
 ## Testing without sound
 

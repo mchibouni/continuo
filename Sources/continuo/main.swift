@@ -13,6 +13,7 @@ continuo render <chords>    rehearse a progression silently: bar-by-bar notes, c
                             options: --scene <name> --bars <per chord> --loops <n> --tempo <bpm>
                             --late <ms> (the player's timing, negative = early) --roll <ms between a chord's notes, 4>
                             --audio <file.m4a> (render on the built-in General MIDI synth) --json <file>
+                            --sounds <file.json> renders --audio through instrument plugins (see Sounds.swift)
 continuo ctl <command>      talk to the running band:
     start | stop | panic | status
     tempo <bpm> | swing <50-75> | feel <8|16>
@@ -29,6 +30,7 @@ continuo voicings <chords>  the bank's voicings for some chords, most used first
 continuo phrases [style]    the players' phrases the bank holds, by style and part
 continuo styles             the rhythms each kind of part can play
 continuo ports              MIDI sources and destinations
+continuo sounds             the instrument plugins it can play a render through
 continuo init               write the standard config to ~/.config/continuo/config.json to edit
 Options: --config <file> (default ~/.config/continuo/config.json, else the built-in one)
          --bank <file|none> (default ~/.config/continuo/bank.json when it exists)
@@ -148,6 +150,7 @@ case "run":
 case "render":
     var config = loadConfig(quiet: true)
     let scene = option("--scene"), out = option("--out"), audio = option("--audio"), json = option("--json"), section = option("--section")
+    let soundsPath = option("--sounds")
     let bars = Int(option("--bars") ?? "1") ?? 1, loops = Int(option("--loops") ?? "1") ?? 1
     let verbose = args.contains("--verbose")
     args.removeAll { $0 == "--verbose" }
@@ -174,11 +177,25 @@ case "render":
             try r.json.write(to: URL(fileURLWithPath: (json as NSString).expandingTildeInPath))
             print("wrote \(json)")
         }
+        let code: Int32 = problems.isEmpty ? 0 : 2
         if let audio {
-            try GeneralMIDI.render(r, to: URL(fileURLWithPath: (audio as NSString).expandingTildeInPath))
+            let url = URL(fileURLWithPath: (audio as NSString).expandingTildeInPath)
+            if let soundsPath {
+                let sounds = try SoundsFile.load(URL(fileURLWithPath: (soundsPath as NSString).expandingTildeInPath))
+                let sceneName = scene ?? config.startScene
+                Task { @MainActor in
+                    do {
+                        try await Sounds.render(r, scene: sceneName, sounds: sounds, to: url)
+                        print("wrote \(audio) (" + r.engine.parts.map { "\($0.name): \(sounds.sound(for: $0.name, scene: sceneName))" }.joined(separator: ", ") + ")")
+                        exit(code)
+                    } catch { fail("\(error)") }
+                }
+                RunLoop.main.run()
+            }
+            try GeneralMIDI.render(r, to: url)
             print("wrote \(audio) (the built-in General MIDI synth)")
         }
-        exit(problems.isEmpty ? 0 : 2)
+        exit(code)
     } catch { fail("\(error)") }
 
 case "ctl":
@@ -271,6 +288,11 @@ case "styles":
         print(kind.rawValue)
         for s in styles where s.kind == kind { print("  \(s.name.padding(toLength: 11, withPad: " ", startingAt: 0)) \(s.about)") }
     }
+
+case "sounds":
+    let all = Sounds.available().filter { $0.manufacturerName != "Apple" }
+    if all.isEmpty { print("no instrument plugins visible here: they only show up in your login session (a normal terminal)") }
+    for c in all { print("  \(c.manufacturerName): \(c.name)") }
 
 case "ports":
     print("sources (inputs):")

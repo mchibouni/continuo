@@ -1,0 +1,12 @@
+{
+  "parts": { "bass": "Mini V4", "keys": "Stage-73 V2", "pad": "Jup-8 V4", "arp": "Jup-8 V4" },
+  "scenes": {
+    "funk":   { "keys": "Clavinet V" },
+    "house":  { "keys": "Piano V3", "arp": "Prophet-5 V" },
+    "jazz":   { "keys": "Piano V3", "bass": "gm" },
+    "ballad": { "keys": "Piano V3", "bass": "gm" },
+    "drive":  { "keys": "Piano V3" }
+  },
+  "gain": { "Mini V4": -5, "Jup-8 V4": -9, "Prophet-5 V": -8, "Clavinet V": 2, "Wurli V3": 4 },
+  "reverb": 14
+}
