@@ -41,7 +41,7 @@ public struct InputSpec: Codable {
 
 public struct OutputSpec: Codable {
     public var name: String
-    public var port: String    // "virtual" for karmic's own port, else a destination's name
+    public var port: String    // "virtual" for continuo's own port, else a destination's name
     public init(name: String, port: String) { (self.name, self.port) = (name, port) }
 }
 
@@ -90,13 +90,13 @@ public let standardJSON = """
   ],
   "latch": true,
   "autoStart": true,
-  "outputs": [ { "name": "karmic", "port": "virtual" } ],
+  "outputs": [ { "name": "continuo", "port": "virtual" } ],
   "clockOut": [],
   "parts": [
-    { "name": "bass", "kind": "bass", "style": "funk",   "out": "karmic", "channel": 2 },
-    { "name": "keys", "kind": "comp", "style": "stabs",  "out": "karmic", "channel": 3 },
-    { "name": "arp",  "kind": "arp",  "style": "broken", "out": "karmic", "channel": 4 },
-    { "name": "pad",  "kind": "comp", "style": "pad",    "out": "karmic", "channel": 5,
+    { "name": "bass", "kind": "bass", "style": "funk",   "out": "continuo", "channel": 2 },
+    { "name": "keys", "kind": "comp", "style": "stabs",  "out": "continuo", "channel": 3 },
+    { "name": "arp",  "kind": "arp",  "style": "broken", "out": "continuo", "channel": 4 },
+    { "name": "pad",  "kind": "comp", "style": "pad",    "out": "continuo", "channel": 5,
       "range": [48, 84], "voices": 5, "complexity": 0.8, "velocity": [45, 70], "mute": true }
   ],
   "scenes": [

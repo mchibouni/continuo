@@ -1,26 +1,28 @@
-# karmic
+# Continuo
 
-A band that follows the chords you play, in the spirit of Korg's KARMA. Play chords on a
-MIDI keyboard. karmic names each chord, and its parts play patterns over it: bass, keys, an
-arpeggio and a pad. Each part sends MIDI on its own channel to whatever synths you point it
-at. karmic makes no sound itself.
+A band that follows the chords you play. Play chords on a MIDI keyboard. Continuo names each
+chord, and its parts play patterns over it: bass, keys, an arpeggio and a pad. Each part sends
+MIDI on its own channel to whatever synths you point it at. Continuo makes no sound itself.
+
+The name comes from the basso continuo of baroque music: the keyboard and bass players who
+made up the chords on the spot from a bass line and a few figures.
 
 macOS 14 or later, Swift 5.10 or later.
 
 ```
 swift build -c release
-.build/release/karmic                  # run it; the first chord starts the band
-karmic --gm --config examples/general-midi.json   # also hear it on macOS's built-in GM synth
-karmic ctl scene jazz                  # steer it while it runs
-karmic render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it silently
+.build/release/continuo                  # run it; the first chord starts the band
+continuo --gm --config examples/general-midi.json   # also hear it on macOS's built-in GM synth
+continuo ctl scene jazz                  # steer it while it runs
+continuo render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it silently
 ```
 
 ## How it plays
 
-- **Styles** are a bar of sixteenths written as text (`Sources/KarmicCore/Styles.swift`). A
+- **Styles** are a bar of sixteenths written as text (`Sources/ContinuoCore/Styles.swift`). A
   digit starts a note and says how strong its step is, `-` holds it, and a role letter says
   what the note is: root, fifth, approach note, ghost, the whole voicing, its top notes, and
-  so on. `karmic styles` lists them all.
+  so on. `continuo styles` lists them all.
 - **Density** drops the weakest steps first, so turning it down thins a groove the way a
   player would. **Complexity** brings in richer notes: tensions in the voicings, and approach
   notes and thirds in the bass.
@@ -37,16 +39,16 @@ karmic render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it s
 ## Commands
 
 ```
-karmic ctl start | stop | panic | status
-karmic ctl tempo 112 | swing 62 | feel 8
-karmic ctl scene [name or number]
-karmic ctl chord Dm9                   # as if you had played it
-karmic ctl set bass.density 0.4        # any part setting from the config
-karmic ctl mute arp | unmute arp | toggle pad
-karmic render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built-in GM synth) and note data
-karmic chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
-karmic ports                           # MIDI sources and destinations
-karmic init                            # write the standard config to edit
+continuo ctl start | stop | panic | status
+continuo ctl tempo 112 | swing 62 | feel 8
+continuo ctl scene [name or number]
+continuo ctl chord Dm9                   # as if you had played it
+continuo ctl set bass.density 0.4        # any part setting from the config
+continuo ctl mute arp | unmute arp | toggle pad
+continuo render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built-in GM synth) and note data
+continuo chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
+continuo ports                           # MIDI sources and destinations
+continuo init                            # write the standard config to edit
 ```
 
 `ctl` sends one line over UDP to 127.0.0.1:47130, so anything that can send a UDP packet can
@@ -54,13 +56,13 @@ steer the band: a controller script, Hammerspoon, a shell alias.
 
 ## Config
 
-`karmic init` writes the standard config to `~/.config/karmic/config.json`:
+`continuo init` writes the standard config to `~/.config/continuo/config.json`:
 
 - `inputs`: the MIDI sources whose notes make the chord. Each has an optional channel and an
   optional `zone` (the range of notes that count), so the left hand can play the chords while
   the right hand plays freely.
-- `outputs`: karmic's own virtual port (`"port": "virtual"`, it shows up as "karmic") or any
-  destination by name (see `karmic ports`)
+- `outputs`: Continuo's own virtual port (`"port": "virtual"`, it shows up as "continuo") or any
+  destination by name (see `continuo ports`)
 - `parts`: name, kind (`bass`, `comp` or `arp`), style, output, channel, range, density,
   complexity, velocity, voices, swing, loop length, variation…
 - `program`: a part setting (1-128) sent as a program change when the band starts and when
@@ -68,12 +70,12 @@ steer the band: a controller script, Hammerspoon, a shell alias.
 - `scenes`: per-part overrides, plus tempo and swing
 - `clockOut`: outputs that get MIDI clock and start/stop, so a drum machine follows the band
 
-Some hosts enable every new MIDI input automatically. When karmic's port appears, make sure
+Some hosts enable every new MIDI input automatically. When Continuo's port appears, make sure
 each instrument listens only to its own part's channel.
 
 ## Testing without sound
 
-`karmic render` plays a progression into the engine on a simulated clock. It prints every
+`continuo render` plays a progression into the engine on a simulated clock. It prints every
 part bar by bar, checks the result and can write a MIDI file. The checks are that every note
 ends, mono parts stay mono, and notes stay in range and in the chord's palette. `--late 30`
 plays the chords 30 ms behind the beat, to hear how the band catches up. `swift test` runs

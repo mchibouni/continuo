@@ -155,7 +155,7 @@ extension Rehearsal {
         func chunk(_ id: String, _ body: [UInt8]) -> [UInt8] { Array(id.utf8) + be(body.count, 4) + body }
 
         let us = Int(60_000_000 / e.tempo)
-        var conductor: [UInt8] = [0] + meta(0x03, "karmic") + [0, 0xFF, 0x51, 0x03] + be(us, 3)
+        var conductor: [UInt8] = [0] + meta(0x03, "continuo") + [0, 0xFF, 0x51, 0x03] + be(us, 3)
         var last = 0
         for (t, c) in chords {
             conductor += vlq(ticks(t) - last) + meta(0x06, c.description)

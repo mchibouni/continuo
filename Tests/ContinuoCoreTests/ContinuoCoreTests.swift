@@ -1,7 +1,7 @@
 import XCTest
-@testable import KarmicCore
+@testable import ContinuoCore
 
-final class KarmicCoreTests: XCTestCase {
+final class ContinuoCoreTests: XCTestCase {
     func name(_ notes: String) -> String {
         detectChord(notes.split(separator: " ").map { parseNote(String($0))! })!.description
     }
@@ -61,7 +61,7 @@ final class KarmicCoreTests: XCTestCase {
             var config = Config.standard
             config.startScene = nil
             config.scenes = nil
-            config.parts = [PartSpec(name: "x", kind: s.kind, style: s.name, out: "karmic", channel: 2, vary: 0.5)]
+            config.parts = [PartSpec(name: "x", kind: s.kind, style: s.name, out: "continuo", channel: 2, vary: 0.5)]
             for late in [-0.02, 0, 0.035] {
                 let r = try rehearse(config, chords: chords, late: late)
                 XCTAssertEqual(r.problems, [], "\(s.kind) \(s.name), late \(late)")

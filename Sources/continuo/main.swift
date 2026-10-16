@@ -1,19 +1,19 @@
-// karmic: a band that follows the chords you play. See `karmic help`.
+// continuo: a band that follows the chords you play. See `continuo help`.
 
 import CoreMIDI
 import Foundation
-import KarmicCore
+import ContinuoCore
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
 let help = """
-karmic [--gm]               run the band (play a chord to start it); --gm also plays it on the
+continuo [--gm]             run the band (play a chord to start it); --gm also plays it on the
                             built-in General MIDI synth, to hear it with no synths attached
-karmic render <chords>      rehearse a progression silently: bar-by-bar notes, checks, --out file.mid
+continuo render <chords>    rehearse a progression silently: bar-by-bar notes, checks, --out file.mid
                             options: --scene <name> --bars <per chord> --loops <n> --tempo <bpm>
                             --late <ms> (the player's timing, negative = early) --roll <ms between a chord's notes, 4>
                             --audio <file.m4a> (render on the built-in General MIDI synth) --json <file>
-karmic ctl <command>        talk to the running band:
+continuo ctl <command>      talk to the running band:
     start | stop | panic | status
     tempo <bpm> | swing <50-75> | feel <8|16>
     scene [<name or number>]
@@ -21,11 +21,11 @@ karmic ctl <command>        talk to the running band:
     set <part>.<setting> <value>     e.g. set bass.density 0.5, set keys.style charleston,
                                      set arp.range 60 84 (any part setting from the config)
     mute | unmute | toggle <part…|all>
-karmic chord <notes…>       name the chord in some notes (D2 F2 A2 C3 E3, or MIDI numbers)
-karmic styles               the rhythms each kind of part can play
-karmic ports                MIDI sources and destinations
-karmic init                 write the standard config to ~/.config/karmic/config.json to edit
-Options: --config <file> (default ~/.config/karmic/config.json, else the built-in one)
+continuo chord <notes…>     name the chord in some notes (D2 F2 A2 C3 E3, or MIDI numbers)
+continuo styles             the rhythms each kind of part can play
+continuo ports              MIDI sources and destinations
+continuo init               write the standard config to ~/.config/continuo/config.json to edit
+Options: --config <file> (default ~/.config/continuo/config.json, else the built-in one)
 """
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -49,19 +49,19 @@ func need<T>(_ value: T?, _ message: @autoclosure () -> String) -> T {
 }
 
 let home = FileManager.default.homeDirectoryForCurrentUser
-let defaultConfig = home.appendingPathComponent(".config/karmic/config.json")
+let defaultConfig = home.appendingPathComponent(".config/continuo/config.json")
 let configPath = option("--config")
 
 func loadConfig(quiet: Bool = false) -> Config {
     let url = configPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } ?? defaultConfig
     if configPath == nil && !FileManager.default.fileExists(atPath: url.path) {
-        if !quiet { print("using the built-in config (karmic init writes it to \(url.path) to edit)") }
+        if !quiet { print("using the built-in config (continuo init writes it to \(url.path) to edit)") }
         return Config.standard
     }
     do { return try Config.load(url) } catch { fail("\(url.path): \(error)") }
 }
 
-// options alone (karmic --gm) mean run
+// options alone (continuo --gm) mean run
 let command = args.first.map { $0.hasPrefix("--") ? "run" : $0 } ?? "run"
 if args.first == command { args.removeFirst() }
 
@@ -78,7 +78,7 @@ case "run":
     do { try serveControl { live.control($0) } } catch { fail("\(error)") }
     do { try live.start() } catch { fail("\(error)") }
     print(live.engine.status())
-    print("play a chord to start; karmic ctl … to steer it; ctrl-c ends every note and quits")
+    print("play a chord to start; continuo ctl … to steer it; ctrl-c ends every note and quits")
     for s in [SIGINT, SIGTERM] {
         signal(s, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: s, queue: .main)
@@ -96,7 +96,7 @@ case "render":
     let roll = (Double(option("--roll") ?? "4") ?? 4) / 1000
     if let t = option("--tempo").flatMap(Double.init) { config.tempo = t }
     let symbols = args.flatMap { $0.split(separator: " ").map(String.init) }
-    guard !symbols.isEmpty else { fail("karmic render Dm9 G13 Cmaj9 …") }
+    guard !symbols.isEmpty else { fail("continuo render Dm9 G13 Cmaj9 …") }
     let chords = symbols.map { s in need(parseChord(s), "can't read the chord \(s)") }
     do {
         let r = try rehearse(config, chords: chords, barsPerChord: bars, loops: loops, scene: scene, late: late, roll: roll)
@@ -121,12 +121,12 @@ case "render":
     } catch { fail("\(error)") }
 
 case "ctl":
-    guard let reply = sendControl(args.joined(separator: " ")) else { fail("no answer: is karmic running?") }
+    guard let reply = sendControl(args.joined(separator: " ")) else { fail("no answer: is continuo running?") }
     print(reply)
 
 case "chord":
     let notes = args.flatMap { $0.split(separator: " ").map(String.init) }.map { s in need(parseNote(s), "can't read the note \(s)") }
-    guard let c = detectChord(notes) else { fail("karmic chord D2 F2 A2 C3 E3") }
+    guard let c = detectChord(notes) else { fail("continuo chord D2 F2 A2 C3 E3") }
     print(c)
 
 case "styles":
@@ -143,7 +143,7 @@ case "ports":
 
 case "init":
     if FileManager.default.fileExists(atPath: defaultConfig.path) && !args.contains("--force") {
-        fail("\(defaultConfig.path) exists (karmic init --force replaces it)")
+        fail("\(defaultConfig.path) exists (continuo init --force replaces it)")
     }
     try? FileManager.default.createDirectory(at: defaultConfig.deletingLastPathComponent(), withIntermediateDirectories: true)
     do { try Data(standardJSON.utf8).write(to: defaultConfig) } catch { fail("\(error)") }

@@ -1,10 +1,10 @@
 // The engine on real MIDI: chords in from the configured sources, the parts out through
-// karmic's own port or other destinations, on a real-time thread that sends every message
+// continuo's own port or other destinations, on a real-time thread that sends every message
 // stamped with the host time it belongs to (CoreMIDI holds early ones until then).
 
 import CoreMIDI
 import Foundation
-import KarmicCore
+import ContinuoCore
 
 let timebase: mach_timebase_info_data_t = { var t = mach_timebase_info_data_t(); mach_timebase_info(&t); return t }()
 func seconds(_ host: UInt64) -> Double { Double(host) * Double(timebase.numer) / Double(timebase.denom) / 1e9 }
@@ -31,12 +31,12 @@ final class Live: Sink {
     var targets: [MIDIEndpointRef]
     var connected = Set<MIDIEndpointRef>()
     let list = UnsafeMutablePointer<MIDIEventList>.allocate(capacity: 1)
-    let logQueue = DispatchQueue(label: "karmic.log")
+    let logQueue = DispatchQueue(label: "continuo.log")
     var gm: GeneralMIDI? = nil   // also play the parts on the built-in synth
 
     init(config: Config) throws {
         self.config = config
-        outputs = config.outputs ?? [OutputSpec(name: "karmic", port: "virtual")]
+        outputs = config.outputs ?? [OutputSpec(name: "continuo", port: "virtual")]
         targets = Array(repeating: 0, count: outputs.count)
         engine = try Engine(config: config, sink: self)
         engine.onLog = { [weak self] line in self?.log(line) }
@@ -66,13 +66,13 @@ final class Live: Sink {
     }
 
     func start() throws {
-        var status = MIDIClientCreateWithBlock("karmic" as CFString, &client) { [weak self] note in
+        var status = MIDIClientCreateWithBlock("continuo" as CFString, &client) { [weak self] note in
             if note.pointee.messageID == .msgSetupChanged { self?.connect() }
         }
         guard status == noErr else { throw ConfigError("can't open CoreMIDI (\(status))") }
         if outputs.contains(where: { $0.port == "virtual" }) {
-            MIDISourceCreateWithProtocol(client, "karmic" as CFString, ._1_0, &source)
-            MIDIObjectSetIntegerProperty(source, kMIDIPropertyUniqueID, 0x4B52_4D43)   // fixed, so synths find it again
+            MIDISourceCreateWithProtocol(client, "continuo" as CFString, ._1_0, &source)
+            MIDIObjectSetIntegerProperty(source, kMIDIPropertyUniqueID, 0x434E_544F)   // fixed, so synths find it again
         }
         MIDIOutputPortCreate(client, "out" as CFString, &outPort)
         status = MIDIInputPortCreateWithProtocol(client, "in" as CFString, ._1_0, &inPort) { [weak self] list, ref in
@@ -81,7 +81,7 @@ final class Live: Sink {
         guard status == noErr else { throw ConfigError("can't open a MIDI input (\(status))") }
         connect()
         let thread = Thread { [unowned self] in self.loop() }
-        thread.name = "karmic"
+        thread.name = "continuo"
         thread.qualityOfService = .userInteractive
         thread.start()
     }
@@ -202,7 +202,7 @@ func serveControl(_ handle: @escaping (String) -> String) throws {
     let fd = socket(AF_INET, SOCK_DGRAM, 0)
     var addr = loopback()
     let bound = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
-    guard bound == 0 else { throw ConfigError("port \(controlPort) is taken: is karmic already running?") }
+    guard bound == 0 else { throw ConfigError("port \(controlPort) is taken: is continuo already running?") }
     Thread {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
@@ -216,7 +216,7 @@ func serveControl(_ handle: @escaping (String) -> String) throws {
     }.start()
 }
 
-/// Sends one command to a running karmic and returns its reply.
+/// Sends one command to a running continuo and returns its reply.
 func sendControl(_ line: String) -> String? {
     let fd = socket(AF_INET, SOCK_DGRAM, 0)
     defer { close(fd) }

@@ -19,7 +19,7 @@
   "autoStart": true,
   "outputs": [
     {
-      "name": "karmic",
+      "name": "continuo",
       "port": "virtual"
     }
   ],
@@ -29,28 +29,28 @@
       "name": "bass",
       "kind": "bass",
       "style": "funk",
-      "out": "karmic",
+      "out": "continuo",
       "channel": 2
     },
     {
       "name": "keys",
       "kind": "comp",
       "style": "stabs",
-      "out": "karmic",
+      "out": "continuo",
       "channel": 3
     },
     {
       "name": "arp",
       "kind": "arp",
       "style": "broken",
-      "out": "karmic",
+      "out": "continuo",
       "channel": 4
     },
     {
       "name": "pad",
       "kind": "comp",
       "style": "pad",
-      "out": "karmic",
+      "out": "continuo",
       "channel": 5,
       "range": [
         48,

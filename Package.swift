@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "karmic",
+    name: "continuo",
     platforms: [.macOS(.v14)],
     targets: [
-        .target(name: "KarmicCore"),
-        .executableTarget(name: "karmic", dependencies: ["KarmicCore"]),
-        .testTarget(name: "KarmicCoreTests", dependencies: ["KarmicCore"]),
+        .target(name: "ContinuoCore"),
+        .executableTarget(name: "continuo", dependencies: ["ContinuoCore"]),
+        .testTarget(name: "ContinuoCoreTests", dependencies: ["ContinuoCore"]),
     ]
 )

@@ -1,9 +1,9 @@
-// Apple's built-in General MIDI synth, for hearing karmic with no synths attached: live
-// beside the MIDI outputs (`karmic --gm`), or rendering a rehearsal to an audio file.
+// Apple's built-in General MIDI synth, for hearing continuo with no synths attached: live
+// beside the MIDI outputs (`continuo --gm`), or rendering a rehearsal to an audio file.
 
 import AVFoundation
 import AudioToolbox
-import KarmicCore
+import ContinuoCore
 
 final class GeneralMIDI {
     // GM programs (1-128) for parts that don't name one: finger bass, electric piano, saw lead

@@ -167,7 +167,7 @@ public final class Engine {
     public init(config: Config, sink: Sink) throws {
         self.config = config
         self.sink = sink
-        outputNames = (config.outputs ?? [OutputSpec(name: "karmic", port: "virtual")]).map(\.name)
+        outputNames = (config.outputs ?? [OutputSpec(name: "continuo", port: "virtual")]).map(\.name)
         inputs = config.inputs ?? []
         tempo = min(300, max(20, config.tempo ?? 100))
         swing = min(75, max(50, config.swing ?? 50))
@@ -593,7 +593,7 @@ public final class Engine {
 
     // MARK: commands
 
-    /// One line of the control protocol (see `karmic help`); returns the reply.
+    /// One line of the control protocol (see `continuo help`); returns the reply.
     public func control(_ line: String, at t: Double) -> String {
         let w = line.split(separator: " ").map(String.init)
         guard let cmd = w.first?.lowercased() else { return status() }
