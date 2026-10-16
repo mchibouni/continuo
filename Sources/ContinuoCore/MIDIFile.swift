@@ -6,12 +6,16 @@ import Foundation
 public struct MIDINote {
     public let start: Double, length: Double   // seconds
     public let note: Int, velocity: Int, channel: Int
+    public let beat: Double, beats: Double     // start and length in quarter notes from the file's start
+    public let track: Int
 }
 
 public struct MIDIFile {
     public private(set) var notes: [MIDINote] = []
     public private(set) var programs: [Int: Int] = [:]   // channel → program, 0-127
     public private(set) var tempo = 120.0                 // the first tempo, bpm
+    public private(set) var meter = (beats: 4, unit: 4)   // the first time signature
+    public private(set) var trackNames: [Int: String] = [:]
 
     public init(contentsOf url: URL) throws { try self.init(Data(contentsOf: url)) }
 
@@ -24,9 +28,10 @@ public struct MIDIFile {
         guard division & 0x8000 == 0, division > 0 else { throw ConfigError("SMPTE-timed MIDI files aren't supported") }
         var pos = 8 + u32(4)
         var tempos: [(tick: Int, usPerQuarter: Int)] = []
-        var raw: [(on: Int, off: Int, note: Int, velocity: Int, channel: Int)] = []
+        var raw: [(on: Int, off: Int, note: Int, velocity: Int, channel: Int, track: Int)] = []
+        var meterSet = false
 
-        for _ in 0..<tracks {
+        for track in 0..<tracks {
             guard pos + 8 <= d.count, d[pos..<pos + 4] == [0x4D, 0x54, 0x72, 0x6B] else { break }
             var p = pos + 8, tick = 0, status: UInt8 = 0
             let end = min(d.count, p + u32(pos + 4))
@@ -50,6 +55,11 @@ public struct MIDIFile {
                     let length = vlq()
                     if type == 0x51 && length == 3 && p + 3 <= end {
                         tempos.append((tick, Int(d[p]) << 16 | Int(d[p + 1]) << 8 | Int(d[p + 2])))
+                    } else if type == 0x58 && length >= 2 && p + 2 <= end && !meterSet {
+                        meter = (Int(d[p]), 1 << Int(min(d[p + 1], 6)))
+                        meterSet = true
+                    } else if type == 0x03 && trackNames[track] == nil && p + length <= end {
+                        trackNames[track] = String(decoding: d[p..<p + length], as: UTF8.self)
                     }
                     p += length
                 } else if status == 0xF0 || status == 0xF7 {
@@ -67,7 +77,7 @@ public struct MIDIFile {
                         if var starts = open[key], !starts.isEmpty {
                             let s = starts.removeFirst()
                             open[key] = starts
-                            raw.append((s.tick, tick, a, s.velocity, channel))
+                            raw.append((s.tick, tick, a, s.velocity, channel, track))
                         }
                     } else if kind == 0xC0 && programs[channel] == nil {
                         programs[channel] = a
@@ -92,9 +102,11 @@ public struct MIDIFile {
             while lo < hi { let mid = (lo + hi + 1) / 2; if marks[mid].tick <= tick { lo = mid } else { hi = mid - 1 } }
             return marks[lo].seconds + Double(tick - marks[lo].tick) * marks[lo].perTick
         }
+        let q = Double(division)
         notes = raw.map { r in
             let s = time(r.on)
-            return MIDINote(start: s, length: max(0, time(r.off) - s), note: r.note, velocity: r.velocity, channel: r.channel)
+            return MIDINote(start: s, length: max(0, time(r.off) - s), note: r.note, velocity: r.velocity, channel: r.channel,
+                            beat: Double(r.on) / q, beats: Double(r.off - r.on) / q, track: r.track)
         }.sorted { ($0.start, $0.note) < ($1.start, $1.note) }
     }
 }

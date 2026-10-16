@@ -43,6 +43,15 @@ public final class Part {
     public internal(set) var mute = false, mono = false, legato = false, retrigger = true, rootless = false
     public internal(set) var program: Int? = nil
     public internal(set) var voicings = "any"   // comp: bank styles, "any", or "rules"
+    public internal(set) var phrases: String? = nil   // styles to play phrases from; nil plays the pattern
+
+    // the phrase it's playing: which, from which step, the song it's from, and how far to shift it
+    public internal(set) var phrase: Int? = nil
+    var phraseStep = 0, phraseOffset = 0, phraseFloor = 0, phrasePlays = 0, songsPlayed = 0
+    public internal(set) var phraseSong: String? = nil
+    var phraseSteps: [Int: [Int]] = [:]
+    var landed: Chord? = nil   // bass: the chord its last note landed on
+    var sounding: [(key: Int, token: Int, phrase: Int, note: Int, on: Double, off: Double, velocity: Int)] = []
 
     var counter = 0, loopIndex = -1
     var lastNote: Int? = nil
@@ -60,7 +69,7 @@ public final class Part {
     func reset() {
         style = styles.first { $0.kind == kind }!
         density = 0.75; accent = 0.5; vary = 0; humanize = 4; gate = nil; swing = nil; feel = nil
-        octave = 0; loop = 2; mute = false; legato = false; program = nil; voicings = "any"
+        octave = 0; loop = 2; mute = false; legato = false; program = nil; voicings = "any"; phrases = nil
         seed = name.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
         switch kind {
         case .bass:
@@ -76,10 +85,24 @@ public final class Part {
     }
 
     public var range: ClosedRange<Int> { max(0, lo + 12 * octave)...min(127, hi + 12 * octave) }
+
+    func clearPhrase() {
+        (phrase, phraseSong, phraseSteps, sounding, phrasePlays, landed) = (nil, nil, [:], [], 0, nil)
+    }
+
+    /// What it plays when it plays phrases.
+    var phraseRole: PhraseRole {
+        switch kind {
+        case .bass: return .bass
+        case .arp: return .line
+        case .comp: return style.name == "pad" ? .pad : .keys
+        }
+    }
 }
 
 enum Action {
     case hit(part: Int, onset: Onset, step: Int, due: Double)
+    case phrase(part: Int, phrase: Int, note: Int, due: Double)
     case off(key: Int, token: Int, part: Int)
     case raw(bytes: [UInt8], output: Int)
 }
@@ -149,6 +172,13 @@ public final class Engine {
     public var onChord: (Double, Chord) -> Void = { _, _ in }
     /// Players' voicings for the keys parts; without one they use the built-in voicer.
     public var bank: VoicingBank? = nil
+    /// Players' phrases, for parts set to play them.
+    public var phraseBank: PhraseBank? = nil
+    /// The song section phrase parts play: verse, chorus, intro, bridge…
+    public internal(set) var section = "verse"
+    /// The groove or song the phrase parts play together, and which take of it, since when, for how long.
+    public internal(set) var bandSong: String? = nil
+    var bandOrder = -1, bandStep = 0, bandBars = 0, bandPlays = 0, bandSongs = 0
 
     public private(set) var tempo = 100.0, swing = 50.0, feel = 16, stepsPerBar = 16
     var latch = true, autoStart = true, settle = 0.015
@@ -165,7 +195,7 @@ public final class Engine {
     var heap = EventHeap()
     var active: [Int: (token: Int, part: Int)] = [:]   // what each key is sounding, by output/channel/note
     var tokens = 0
-    public private(set) var corrections = 0   // hits re-voiced because the chord changed under them
+    public internal(set) var corrections = 0   // hits re-voiced because the chord changed under them
 
     public init(config: Config, sink: Sink) throws {
         self.config = config
@@ -243,6 +273,10 @@ public final class Engine {
         if let v = s.legato { p.legato = v }
         if let v = s.retrigger { p.retrigger = v }
         if let v = s.rootless { p.rootless = v }
+        if let v = s.phrases {
+            let tags = v.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+            p.phrases = tags.isEmpty || tags == ["off"] ? nil : tags.joined(separator: ",")
+        }
         if let v = s.voicings {
             let tags = v.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
             guard !tags.isEmpty else { throw ConfigError("\(p.name): voicings needs a style, any or rules") }
@@ -256,9 +290,10 @@ public final class Engine {
 
     /// Changes a part, ending what it plays if it moves channel or output or goes quiet.
     func change(_ i: Int, at t: Double, _ body: () throws -> Void) rethrows {
-        let p = parts[i], before = (p.output, p.channel, p.mute, p.style.name), program = p.program
+        let p = parts[i], before = (p.output, p.channel, p.mute, p.style.name), program = p.program, phrases = p.phrases
         try body()
-        if before != (p.output, p.channel, p.mute, p.style.name) { endPart(i, at: t) }
+        if before != (p.output, p.channel, p.mute, p.style.name) || phrases != p.phrases { endPart(i, at: t) }
+        if phrases != p.phrases { p.clearPhrase(); bandSong = nil }
         if before.3 != p.style.name { p.counter = 0; p.loopIndex = -1 }
         if running && (program != p.program || before.0 != p.output || before.1 != p.channel) { sendProgram(i, at: t) }
     }
@@ -274,6 +309,7 @@ public final class Engine {
             }
         }
         setTempo(s.tempo ?? config.tempo ?? tempo, at: t)
+        bandSong = nil   // the scene's styles pick a song from the next bar
         swing = min(75, max(50, s.swing ?? config.swing ?? 50))
         feel = (s.feel ?? config.feel) == 8 ? 8 : 16
         scene = s.name
@@ -322,6 +358,12 @@ public final class Engine {
                 return
             }
             fire(i, onset, k, at: e.time)
+        case let .phrase(i, phrase, note, due):
+            if let ev = evalAt, ev > e.time, e.time - due < maxWait - 1e-9 {
+                heap.push(min(ev, due + maxWait), e.action)   // a chord is still arriving
+                return
+            }
+            firePhrase(i, phrase, note, at: e.time)
         case let .off(key, token, i):
             endNote(key, token, at: e.time, part: i)
         case let .raw(bytes, output):
@@ -331,7 +373,12 @@ public final class Engine {
 
     func schedule(_ k: Int) {
         let t0 = stepTime(k)
+        if phraseBank != nil && k % stepsPerBar == 0 && (bandSong == nil || k >= bandStep + bandBars * stepsPerBar)
+            && parts.contains(where: { $0.phrases != nil && !$0.mute }) {
+            advanceBand(k)
+        }
         for (i, p) in parts.enumerated() where !p.mute {
+            if p.phrases != nil && phraseBank != nil { schedulePhrase(i, k); continue }
             guard let on = p.style.onsets[k % p.style.steps] else { continue }
             var w = Double(on.weight)
             if p.vary > 0 { w += (rand(p.seed, k % (p.loop * stepsPerBar), 1) - 0.5) * 4 * p.vary }
@@ -380,6 +427,7 @@ public final class Engine {
             active[k] = nil
         }
         parts[i].last = nil
+        parts[i].sounding = []
     }
 
     func fire(_ i: Int, _ on: Onset, _ k: Int, at t: Double) {
@@ -412,6 +460,7 @@ public final class Engine {
     /// Re-voices what a part is still holding for a chord that changed under it.
     func rerender(_ i: Int, at t: Double) {
         let p = parts[i]
+        if p.phrases != nil && phraseBank != nil { rephrase(i, at: t); return }
         guard !p.mute, var last = p.last, let chord, last.off > t + 0.02,
               p.retrigger || t - last.on < catchWindow else { return }
         let notes = render(p, last.role, chord, last.step, index: last.index, prev: last.before, previous: last.voicingBefore)
@@ -572,7 +621,8 @@ public final class Engine {
         guard !running else { return }
         running = true
         (anchorTime, anchorStep, nextStep) = (t, 0, 0)
-        for p in parts { (p.counter, p.loopIndex, p.last, p.lastNote, p.voicing) = (0, -1, nil, nil, []) }
+        for p in parts { (p.counter, p.loopIndex, p.last, p.lastNote, p.voicing) = (0, -1, nil, nil, []); p.clearPhrase() }
+        (bandSong, bandOrder, bandPlays) = (nil, -1, 0)
         for i in parts.indices { sendProgram(i, at: t) }
         for o in clockOutputs { sink.send([0xFA], output: o, at: t, part: -1) }
         onLog("start, \(fmt(tempo)) BPM")
@@ -589,7 +639,7 @@ public final class Engine {
         heap.removeAll()
         for k in active.keys.sorted() { sendOff(k, at: t, part: active[k]!.part) }
         active.removeAll()
-        for p in parts { p.last = nil }
+        for p in parts { p.last = nil; p.sounding = [] }
         if was {
             for o in clockOutputs { sink.send([0xFC], output: o, at: t, part: -1) }
             onLog("stop")
@@ -631,6 +681,13 @@ public final class Engine {
             case "scene":
                 guard w.count == 2 else { return "scenes: " + scenes.enumerated().map { "\($0.offset + 1) \($0.element.name)" }.joined(separator: ", ") }
                 try applyScene(w[1], at: t); return "scene \(scene!)"
+            case "section":
+                guard w.count == 2 else { return "section \(section) (intro, verse, pre_chorus, chorus, bridge)" }
+                section = w[1].lowercased(); return "section \(section), from each part's next phrase"
+            case "next":
+                for p in parts where p.phrases != nil { p.phraseSong = nil }
+                bandSong = nil
+                return "new songs from each part's next phrase"
             case "set":
                 let path = w.count >= 3 ? w[1].split(separator: ".").map(String.init) : []
                 guard path.count == 2, let i = parts.firstIndex(where: { $0.name == path[0] }) else {
@@ -676,7 +733,9 @@ public final class Engine {
         var s = "\(p.name.padding(toLength: 6, withPad: " ", startingAt: 0)) \(p.style.name.padding(toLength: 10, withPad: " ", startingAt: 0))"
         s += " ch\(p.channel + 1) → \(outputNames[p.output])  density \(fmt(p.density)) complexity \(fmt(p.complexity))"
         s += "  \(noteName(r.lowerBound))-\(noteName(r.upperBound))"
-        if p.kind == .comp { s += " \(p.voices) voices" + (bank == nil ? "" : ", voicings \(p.voicings)") }
+        if let ph = p.phrases, let pb = phraseBank {
+            s += "  phrases \(ph)" + (p.phrase.map { ": " + pb.phrases[$0].name } ?? "")
+        } else if p.kind == .comp { s += " \(p.voices) voices" + (bank == nil ? "" : ", voicings \(p.voicings)") }
         if p.vary > 0 { s += " vary \(fmt(p.vary))" }
         return s + (p.mute ? "  (muted)" : "")
     }

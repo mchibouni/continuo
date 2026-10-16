@@ -28,13 +28,17 @@ public struct Rehearsal {
 /// (`roll` seconds between notes), `late` seconds after its bar line (negative is early).
 public func rehearse(_ config: Config, chords: [Chord], barsPerChord: Int = 1, loops: Int = 1,
                      scene: String? = nil, late: Double = 0, roll: Double = 0.004,
-                     bank: VoicingBank? = nil) throws -> Rehearsal {
+                     bank: VoicingBank? = nil, phrases: PhraseBank? = nil, section: String? = nil,
+                     log: ((String) -> Void)? = nil) throws -> Rehearsal {
     var config = config
     config.inputs = [InputSpec(port: "rehearsal", channel: nil, zone: nil)]
     config.autoStart = true
     let recorder = Recorder()
     let engine = try Engine(config: config, sink: recorder)
     engine.bank = bank
+    engine.phraseBank = phrases
+    if let log { engine.onLog = log }
+    if let section { engine.section = section }
     var taken: [(time: Double, chord: Chord)] = []
     engine.onChord = { taken.append(($0, $1)) }
     if let scene { try engine.applyScene(scene, at: 0) }
@@ -91,11 +95,19 @@ extension Rehearsal {
 
     /// What would go wrong on a synth: notes started twice or never ended, ends with no start,
     /// a mono part sounding two notes, notes outside a part's range, keyboard notes outside the
-    /// chord's palette.
+    /// chord's palette (unless a step leads them into one, as players do).
     public var problems: [String] {
         var problems: [String] = [], on: [Int: Double] = [:], sounding: [Int: Int] = [:]
         let e = engine
-        for m in recorder.messages where m.part >= 0 {
+        let messages = recorder.messages.filter { $0.part >= 0 }
+        func resolves(_ x: Int, _ c: Chord) -> Bool {
+            let m = messages[x], note = Int(m.bytes[1])
+            return messages[(x + 1)...].prefix { $0.time - m.time < 0.6 }.contains { n in
+                n.part == m.part && n.bytes[0] & 0xF0 == 0x90 && n.time > m.time + 0.005
+                    && (1...2).contains(abs(Int(n.bytes[1]) - note)) && c.palette(1).contains(mod12(Int(n.bytes[1])))
+            }
+        }
+        for (x, m) in messages.enumerated() {
             let status = m.bytes[0] & 0xF0, note = Int(m.bytes[1])
             guard status == 0x90 || status == 0x80 else { continue }
             let p = e.parts[m.part], key = m.output * 2048 + Int(m.bytes[0] & 0x0F) * 128 + note
@@ -106,7 +118,7 @@ extension Rehearsal {
                 sounding[m.part, default: 0] += 1
                 if !p.range.contains(note) { problems.append("\(what) is outside \(noteName(p.range.lowerBound))-\(noteName(p.range.upperBound))") }
                 if p.mono && !p.legato && sounding[m.part]! > 1 { problems.append("\(what) overlaps another note of a mono part") }
-                if p.kind != .bass, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)) { problems.append("\(what) is not in \(c)") }
+                if p.kind != .bass, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)), !resolves(x, c) { problems.append("\(what) is not in \(c)") }
             } else {
                 if on[key] == nil { problems.append("\(what) ended without starting") }
                 on[key] = nil

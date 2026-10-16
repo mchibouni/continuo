@@ -35,6 +35,15 @@ continuo render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it
   in its range, preferring shapes players used often. From a bank of jazz piano, Dm9 → G13 →
   Cmaj9 comes out as C E F A → B E F A → B D E G. Chords the bank has never seen fall back to
   the rules above.
+- **Players' phrases:** with a phrase bank, a part plays phrases real players played instead
+  of its style's one-bar pattern: a comping figure, a bass line, an ostinato, a few bars long,
+  with the player's timing and dynamics. Every note keeps its job in the chord (3rd, 7th,
+  9th, a chromatic step into the next note) and moves to that job in the chord you're
+  holding, as near as it can to where the player had it, so the phrase keeps its contour.
+  Parts that play phrases follow one groove together: bass, keys and lines come from the
+  same song and the same take, so they interlock the way they were written. The band moves
+  through a section's takes and stays in it until you change it (`continuo ctl section
+  chorus`), or moves to another groove (`continuo ctl next`).
 - **Chord changes:** a chord is named once its notes have all arrived, 15 ms after the last
   one. A hit that falls due while a chord is still arriving waits for it, up to 60 ms. A
   chord that arrives after a hit has started re-voices whatever is still sounding and keeps
@@ -56,6 +65,9 @@ continuo render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built
 continuo chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
 continuo mine --tag jazz ~/MIDI/jazz --tag soul ~/MIDI/soul   # build the voicing bank
 continuo voicings Dm9 G13 --tag jazz     # what the bank plays for some chords
+continuo phrases                         # the players' phrases it learned, by style
+continuo ctl section chorus              # phrase parts move to the chorus at their next take
+continuo ctl next                        # and to another groove
 continuo ports                           # MIDI sources and destinations
 continuo init                            # write the standard config to edit
 ```
@@ -76,6 +88,8 @@ steer the band: a controller script, Hammerspoon, a shell alias.
   complexity, velocity, voices, swing, loop length, variation…
 - `program`: a part setting (1-128) sent as a program change when the band starts and when
   a scene changes it. `examples/general-midi.json` uses it to pick General MIDI sounds per scene.
+- `phrases`: a part setting: the styles whose phrases it plays (`"fusion"`, `"soul,jazz"`, `"any"`),
+  or `"off"` for its style's pattern. Without a phrase bank parts play their patterns.
 - `voicings`: a keys part setting: the bank's styles to voice from (`"jazz"`, `"fusion,soul"`),
   `"any"` (the default) or `"rules"` for the built-in voicer. The standard scenes pick a style each.
 - `scenes`: per-part overrides, plus tempo and swing
@@ -84,14 +98,24 @@ steer the band: a controller script, Hammerspoon, a shell alias.
 Some hosts enable every new MIDI input automatically. When Continuo's port appears, make sure
 each instrument listens only to its own part's channel.
 
-## The voicing bank
+## The voicing and phrase banks
 
-`continuo mine` writes the bank to `~/.config/continuo/bank.json`, and `run` and `render` use
-it from there (`--bank <file>` picks another, `--bank none` plays without one). It reads
+`continuo mine` writes the voicings to `~/.config/continuo/bank.json` and the phrases to
+`phrases.json` beside it, and `run` and `render` use them from there (`--bank` and `--phrases`
+pick other files, `none` plays without one). It reads
 standard MIDI files, a folder at a time, each under the style named by the `--tag` before it.
 Drums and bass channels are skipped, and every other channel counts as one player. A shape
 has to turn up twice (`--min`) to stay, and a pattern repeated over and over in one file
 counts three times at most, so one loop can't drown out the rest.
+
+For phrases, each track or channel of a file is one player: a bass line, keyboard chords, a
+pad, or a single line, told apart by register, how often it plays chords, note lengths and
+the track's name. Files up to 8 bars become one phrase; longer ones are cut into 4-bar
+phrases, at most eight per player, spread through the song. The harmony under every half
+bar comes from all the file's pitched players together. A file in a folder named after a
+section (`…/GROOVE/VERSE/Variation_02.mid`) is that section's second take of GROOVE; other
+files are songs of their own. A lone keyboard part's left-hand bass becomes a bass phrase,
+so the bass part can play the pianist's own line. Only 4/4 for now.
 
 The bank is built from your own MIDI files and stays on your machine: most commercial MIDI
 packs allow use in your music but not sharing the files, and a bank is close enough to them

@@ -138,6 +138,82 @@ final class ContinuoCoreTests: XCTestCase {
         XCTAssertNotEqual(Set(rules.noteOns.map { Int($0.bytes[1]) }), Set([65, 69, 72, 76, 71, 81]))
     }
 
+    func testNotesKeepTheirJobInANewChord() {
+        func moved(_ note: Int, from: String, to: String) -> Int {
+            let a = parseChord(from)!, b = parseChord(to)!
+            let j = job(a, mod12(note - a.root))
+            return mod12(b.root + interval(b, j.deg, j.alt))
+        }
+        XCTAssertEqual(moved(64, from: "Cmaj7", to: "Dm7"), mod12(65))      // the 3rd: E → F
+        XCTAssertEqual(moved(70, from: "C7", to: "Fmaj7"), mod12(64))       // the 7th: B♭ → E
+        XCTAssertEqual(moved(61, from: "C7♭9", to: "Dm9"), mod12(64))       // a ♭9 over a minor chord is a plain 9
+        XCTAssertEqual(moved(61, from: "C7♭9", to: "G7♭9"), mod12(68))      // and stays flat where the chord has it
+        XCTAssertEqual(moved(70, from: "C7", to: "F"), mod12(65))           // a plain triad keeps no 7th: the root
+        XCTAssertEqual(moved(69, from: "C13", to: "A7alt"), mod12(77))      // a 13th over an altered dominant: its ♭13
+        // a phrase over C moves to D♭ as a whole, keeping its shape
+        let notes = [60, 64, 67, 72].map { p in
+            PhraseNote(t: 0, d: 1, v: 90, p: p, deg: job(parseChord("C")!, mod12(p)).deg, alt: 0, root: 0, to: nil)
+        }
+        let phrase = Phrase(tag: "t", role: .keys, song: "s", section: "", order: 0, name: "n", tempo: 100, bars: 1, notes: notes)
+        XCTAssertEqual(notes.indices.map { phrase.place($0, over: parseChord("D♭maj7")!, offset: 0) }, [61, 65, 68, 73])
+    }
+
+    // Two players, bass and keys, one bar each of C and F, four times: a band groove to follow.
+    func twoPlayerSMF() -> Data {
+        func vlq(_ v: Int) -> [UInt8] {
+            var v = v, out = [UInt8(v & 0x7F)]
+            v >>= 7
+            while v > 0 { out.insert(UInt8(v & 0x7F) | 0x80, at: 0); v >>= 7 }
+            return out
+        }
+        func be(_ v: Int, _ n: Int) -> [UInt8] { (0..<n).reversed().map { UInt8(v >> ($0 * 8) & 0xFF) } }
+        func track(_ name: String, _ ch: UInt8, _ events: [(Int, Int, Int)]) -> [UInt8] {   // start, length (ticks), note
+            var evs: [(Int, [UInt8])] = []
+            for (s, l, n) in events { evs.append((s, [0x90 | ch, UInt8(n), 90])); evs.append((s + l, [0x80 | ch, UInt8(n), 0])) }
+            evs.sort { ($0.0, $0.1[0] & 0xF0 == 0x90 ? 1 : 0) < ($1.0, $1.1[0] & 0xF0 == 0x90 ? 1 : 0) }
+            var body: [UInt8] = [0, 0xFF, 0x03, UInt8(name.utf8.count)] + Array(name.utf8), last = 0
+            for (t, m) in evs { body += vlq(t - last) + m; last = t }
+            body += [0, 0xFF, 0x2F, 0]
+            return Array("MTrk".utf8) + be(body.count, 4) + body
+        }
+        let conductor: [UInt8] = [0, 0xFF, 0x51, 3, 0x07, 0xA1, 0x20, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]
+        var bass: [(Int, Int, Int)] = [], keys: [(Int, Int, Int)] = []
+        for bar in 0..<8 {
+            let root = bar % 2 == 0 ? 36 : 41, t = bar * 1920
+            bass += [(t, 400, root), (t + 720, 200, root + 7), (t + 960, 400, root + 12), (t + 1680, 200, root + 10)]
+            let chord = bar % 2 == 0 ? [64, 67, 71, 74] : [65, 69, 72, 76]
+            for beat in [480, 1440] { keys += chord.map { (t + beat, 300, $0) } }
+        }
+        let tracks = Array("MTrk".utf8) + be(conductor.count, 4) + conductor + track("Bass", 0, bass) + track("Keys", 1, keys)
+        return Data(Array("MThd".utf8) + be(6, 4) + be(1, 2) + be(3, 2) + be(480, 2) + tracks)
+    }
+
+    func testMinesAPhraseGrooveAndPlaysItOverOtherChords() throws {
+        var miner = PhraseMiner()
+        miner.add(try MIDIFile(twoPlayerSMF()), tag: "test", song: "groove", section: "", name: "groove.mid")
+        let bank = miner.bank
+        XCTAssertEqual(Set(bank.phrases.map(\.role)), [.bass, .keys])
+        let bassPhrase = bank.phrases.first { $0.role == .bass }!
+        XCTAssertEqual(bassPhrase.notes.prefix(4).map(\.deg), [0, 4, 0, 6], "root, fifth, octave, seventh")
+
+        var config = Config.standard
+        config.startScene = nil
+        config.scenes = nil
+        config.parts = [PartSpec(name: "bass", kind: .bass, style: "funk", out: "continuo", channel: 2, phrases: "test"),
+                        PartSpec(name: "keys", kind: .comp, style: "stabs", out: "continuo", channel: 3, phrases: "test")]
+        var log: [String] = []
+        let r = try rehearse(config, chords: ["Dm9", "G13", "Cmaj9", "A7alt"].map { parseChord($0)! }, loops: 2, late: -0.01,
+                             phrases: bank, log: { log.append($0) })
+        XCTAssertEqual(r.problems, [])
+        XCTAssertTrue(log.contains { $0.hasPrefix("band: groove") }, "\(log)")
+        let bassOns = r.noteOns.filter { r.engine.parts[$0.part].name == "bass" }
+        XCTAssertGreaterThan(bassOns.count, 16)
+        // on each chord's downbeat the bass plays that chord's bass note, as the groove's player did
+        for (t, c) in r.chords {
+            if let first = bassOns.first(where: { abs($0.time - t) < 0.08 }) { XCTAssertEqual(mod12(Int(first.bytes[1])), c.bass, "\(c)") }
+        }
+    }
+
     func testSetCommand() throws {
         let e = try Engine(config: Config.standard, sink: Recorder())
         XCTAssertTrue(e.control("set bass.density 0.3", at: 0).contains("density 0.30"))

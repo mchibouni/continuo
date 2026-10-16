@@ -32,6 +32,8 @@ public struct PartSpec: Codable {
     public var voicings: String?     // comp: the bank's styles to voice from ("jazz", "fusion,soul"),
                                      // "any" for all of them, "rules" for the built-in voicer
     public var program: Int?         // 1-128: a program change sent when the band starts
+    public var phrases: String?      // play players' phrases from these styles ("fusion", "any") instead of
+                                     // the style's pattern; "off" for the pattern
 }
 
 public struct InputSpec: Codable {
@@ -103,25 +105,25 @@ public let standardJSON = """
   ],
   "scenes": [
     { "name": "funk", "swing": 56, "feel": 16, "parts": {
-        "bass": { "style": "funk" }, "keys": { "style": "stabs", "voicings": "soul,fusion", "mute": false },
-        "arp": { "style": "broken", "mute": false }, "pad": { "voicings": "soul", "mute": true } } },
+        "bass": { "style": "funk", "phrases": "soul" }, "keys": { "style": "stabs", "phrases": "soul", "voicings": "soul,fusion", "mute": false },
+        "arp": { "style": "broken", "mute": true }, "pad": { "voicings": "soul", "mute": true } } },
     { "name": "house", "swing": 52, "feel": 16, "parts": {
-        "bass": { "style": "octaves" }, "keys": { "style": "offbeat", "voicings": "house,soul", "mute": false },
-        "arp": { "style": "up16", "mute": false }, "pad": { "voicings": "house", "mute": false } } },
+        "bass": { "style": "octaves", "phrases": "house" }, "keys": { "style": "offbeat", "phrases": "house", "voicings": "house,soul", "mute": false },
+        "arp": { "style": "up16", "phrases": "house", "mute": false }, "pad": { "voicings": "house", "mute": false } } },
     { "name": "jazz", "swing": 64, "feel": 8, "parts": {
-        "bass": { "style": "walk" }, "keys": { "style": "charleston", "voicings": "jazz", "mute": false },
-        "arp": { "mute": true }, "pad": { "voicings": "jazz", "mute": true } } },
+        "bass": { "style": "walk", "phrases": "jazz" }, "keys": { "style": "charleston", "phrases": "jazz", "voicings": "jazz,solo", "mute": false },
+        "arp": { "mute": true }, "pad": { "voicings": "jazz,solo", "mute": true } } },
     { "name": "bossa", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "bossa" }, "keys": { "style": "bossa", "voicings": "jazz", "mute": false },
+        "bass": { "style": "bossa" }, "keys": { "style": "bossa", "voicings": "jazz,solo", "mute": false },
         "arp": { "style": "updown8", "density": 0.4, "mute": false }, "pad": { "mute": true } } },
     { "name": "ballad", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "rootfive", "density": 0.5 }, "keys": { "style": "ballad", "voicings": "jazz,soul", "mute": false },
-        "arp": { "style": "updown8", "density": 0.5, "mute": false }, "pad": { "voicings": "soul,jazz", "mute": false } } },
+        "bass": { "style": "rootfive", "density": 0.5, "phrases": "soul,jazz" }, "keys": { "style": "ballad", "phrases": "soul,jazz", "voicings": "jazz,soul,solo", "mute": false },
+        "arp": { "style": "updown8", "density": 0.5, "mute": true }, "pad": { "voicings": "soul,jazz", "mute": false } } },
     { "name": "drive", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "pedal" }, "keys": { "style": "gate", "voicings": "pop,fusion", "mute": false },
-        "arp": { "style": "random", "mute": false }, "pad": { "mute": true } } },
+        "bass": { "style": "pedal", "phrases": "pop" }, "keys": { "style": "gate", "phrases": "pop", "voicings": "pop,fusion", "mute": false },
+        "arp": { "style": "random", "mute": true }, "pad": { "mute": true } } },
     { "name": "fusion", "swing": 52, "feel": 16, "parts": {
-        "bass": { "style": "funk" }, "keys": { "style": "funk16", "voicings": "fusion", "complexity": 0.8, "mute": false },
+        "bass": { "style": "funk", "phrases": "fusion" }, "keys": { "style": "funk16", "phrases": "fusion", "voicings": "fusion", "complexity": 0.8, "mute": false },
         "arp": { "mute": true }, "pad": { "voicings": "fusion", "mute": false } } }
   ],
   "startScene": "funk"

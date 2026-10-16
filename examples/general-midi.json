@@ -73,22 +73,24 @@
       "parts": {
         "bass": {
           "style": "funk",
+          "phrases": "soul",
           "program": 34
         },
         "keys": {
           "style": "stabs",
-          "mute": false,
+          "phrases": "soul",
           "voicings": "soul,fusion",
+          "mute": false,
           "program": 8
         },
         "arp": {
           "style": "broken",
-          "mute": false,
+          "mute": true,
           "program": 82
         },
         "pad": {
-          "mute": true,
           "voicings": "soul",
+          "mute": true,
           "program": 90
         }
       },
@@ -101,22 +103,25 @@
       "parts": {
         "bass": {
           "style": "octaves",
+          "phrases": "house",
           "program": 39
         },
         "keys": {
           "style": "offbeat",
-          "mute": false,
+          "phrases": "house",
           "voicings": "house,soul",
+          "mute": false,
           "program": 1
         },
         "arp": {
           "style": "up16",
+          "phrases": "house",
           "mute": false,
           "program": 81
         },
         "pad": {
-          "mute": false,
           "voicings": "house",
+          "mute": false,
           "program": 90
         }
       },
@@ -129,12 +134,14 @@
       "parts": {
         "bass": {
           "style": "walk",
+          "phrases": "jazz",
           "program": 33
         },
         "keys": {
           "style": "charleston",
+          "phrases": "jazz",
+          "voicings": "jazz,solo",
           "mute": false,
-          "voicings": "jazz",
           "program": 5
         },
         "arp": {
@@ -142,8 +149,8 @@
           "program": 12
         },
         "pad": {
+          "voicings": "jazz,solo",
           "mute": true,
-          "voicings": "jazz",
           "program": 90
         }
       },
@@ -160,8 +167,8 @@
         },
         "keys": {
           "style": "bossa",
+          "voicings": "jazz,solo",
           "mute": false,
-          "voicings": "jazz",
           "program": 25
         },
         "arp": {
@@ -185,23 +192,25 @@
         "bass": {
           "style": "rootfive",
           "density": 0.5,
+          "phrases": "soul,jazz",
           "program": 36
         },
         "keys": {
           "style": "ballad",
+          "phrases": "soul,jazz",
+          "voicings": "jazz,soul,solo",
           "mute": false,
-          "voicings": "jazz,soul",
           "program": 1
         },
         "arp": {
           "style": "updown8",
           "density": 0.5,
-          "mute": false,
+          "mute": true,
           "program": 47
         },
         "pad": {
-          "mute": false,
           "voicings": "soul,jazz",
+          "mute": false,
           "program": 49
         }
       },
@@ -214,17 +223,19 @@
       "parts": {
         "bass": {
           "style": "pedal",
+          "phrases": "pop",
           "program": 39
         },
         "keys": {
           "style": "gate",
-          "mute": false,
+          "phrases": "pop",
           "voicings": "pop,fusion",
+          "mute": false,
           "program": 91
         },
         "arp": {
           "style": "random",
-          "mute": false,
+          "mute": true,
           "program": 82
         },
         "pad": {
@@ -241,10 +252,12 @@
       "parts": {
         "bass": {
           "style": "funk",
+          "phrases": "fusion",
           "program": 36
         },
         "keys": {
           "style": "funk16",
+          "phrases": "fusion",
           "voicings": "fusion",
           "complexity": 0.8,
           "mute": false,
