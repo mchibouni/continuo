@@ -53,8 +53,8 @@
       "out": "continuo",
       "channel": 5,
       "range": [
-        48,
-        84
+        55,
+        88
       ],
       "voices": 5,
       "complexity": 0.8,

@@ -104,7 +104,9 @@ public struct VoicingBank: Codable {
                 ref += 12
                 guard notes[0] >= lo else { continue }
                 let mean = Double(notes.reduce(0, +)) / Double(notes.count)
-                var cost = rare + 1.2 * Double(abs(notes.count - voices)) + 0.15 * Double(abs(notes[0] - s.at))
+                // a part asking for five notes wants a full chord: missing notes cost more than extra ones
+                let size = notes.count < voices ? 2.0 * Double(voices - notes.count) : 0.8 * Double(notes.count - voices)
+                var cost = rare + size + 0.15 * Double(abs(notes[0] - s.at))
                 if previous.isEmpty {
                     cost += abs(mean - center)
                 } else {

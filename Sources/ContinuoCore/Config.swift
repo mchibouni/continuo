@@ -99,7 +99,7 @@ public let standardJSON = """
     { "name": "keys", "kind": "comp", "style": "stabs",  "out": "continuo", "channel": 3 },
     { "name": "arp",  "kind": "arp",  "style": "broken", "out": "continuo", "channel": 4 },
     { "name": "pad",  "kind": "comp", "style": "pad",    "out": "continuo", "channel": 5,
-      "range": [48, 84], "voices": 5, "complexity": 0.8, "velocity": [45, 70], "mute": true }
+      "range": [55, 88], "voices": 5, "complexity": 0.8, "velocity": [45, 70], "mute": true }
   ],
   "scenes": [
     { "name": "funk", "swing": 56, "feel": 16, "parts": {
