@@ -188,10 +188,13 @@ public final class Engine {
     public internal(set) var bandSong: String? = nil
     /// The chords as they came, and the step each came on: what the player does next, they did before.
     var chordLog: [(chord: Chord, step: Int)] = []
+    var chordTime = 0.0   // when the chord being held arrived
     var bandOrder = -1, bandStep = 0, bandBars = 0, bandPlays = 0, bandSongs = 0
 
     public private(set) var tempo = 100.0, swing = 50.0, feel = 16, stepsPerBar = 16
-    var latch = true, autoStart = true, settle = 0.015
+    var latch = true, autoStart = true, settle = 0.010
+    /// Every part plays this far behind the beat grid, together: time to read a chord played on the beat.
+    public private(set) var latency = 0.025
     let catchWindow = 0.08, maxWait = 0.06, margin = 0.008
 
     var held: [Int: Set<Int>] = [:]
@@ -218,7 +221,8 @@ public final class Engine {
         stepsPerBar = max(1, config.stepsPerBar ?? 16)
         latch = config.latch ?? true
         autoStart = config.autoStart ?? true
-        settle = max(0, config.settle ?? 15) / 1000
+        settle = max(0, config.settle ?? 10) / 1000
+        latency = max(0, config.latency ?? 25) / 1000
         clockOutputs = try (config.clockOut ?? []).map(outputIndex)
         for spec in config.parts {
             guard let name = spec.name, let kind = spec.kind else { throw ConfigError("every part needs a name and a kind (bass, comp or arp)") }
@@ -382,7 +386,7 @@ public final class Engine {
     }
 
     func schedule(_ k: Int) {
-        let t0 = stepTime(k)
+        let t0 = stepTime(k) + latency
         if phraseBank != nil && k % stepsPerBar == 0 && (bandSong == nil || k >= bandStep + bandBars * stepsPerBar)
             && parts.contains(where: { $0.phrases != nil && !$0.mute }) {
             advanceBand(k)
@@ -628,6 +632,7 @@ public final class Engine {
             return
         }
         chordLog.append((c, nextStep))
+        chordTime = t
         for i in parts.indices { rerender(i, at: t) }
     }
 

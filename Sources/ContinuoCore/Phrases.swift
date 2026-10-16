@@ -188,6 +188,7 @@ public struct PhraseMiner {
     public private(set) var phrases: [Phrase] = []
     var files: [String: Int] = [:]
     var seen: Set<Int> = []
+    var named: [Int: Chord?] = [:]   // chord names by (pitch-class set, bass): the same sets come back a lot
     public private(set) var skippedMeter = 0
     /// Phrases kept per part from one long file, spread through it: a five-minute solo
     /// shouldn't outweigh a whole pack of grooves.
@@ -261,18 +262,35 @@ public struct PhraseMiner {
         let bassNotes = groups.filter { $0.role == .bass }.flatMap(\.notes)
         var chords: [Chord?] = []
         var last: Chord? = nil
-        for w in 0..<(bars * 2) {
-            let a = Double(w) * 2, b = a + 2
-            var weight: [Int: Double] = [:]
-            for n in pitched where n.beat < b && n.beat + n.beats > a + 0.05 {
-                weight[mod12(n.note), default: 0] += min(b, n.beat + n.beats) - max(a, n.beat)
+        // each note counts toward the half bars it sounds in, and the lowest bass note in each names its bass
+        let windows = bars * 2
+        var weight = [[Double]](repeating: [Double](repeating: 0, count: 12), count: windows)
+        var lowest = [Int](repeating: Int.max, count: windows)
+        func span(_ n: MIDINote) -> ClosedRange<Int>? {
+            let first = max(0, Int(n.beat / 2)), last = min(windows - 1, Int((n.beat + n.beats) / 2))
+            return first <= last ? first...last : nil
+        }
+        for n in pitched {
+            guard let range = span(n) else { continue }
+            for w in range {
+                let a = Double(w) * 2, b = a + 2
+                if n.beat < b && n.beat + n.beats > a + 0.05 { weight[w][mod12(n.note)] += min(b, n.beat + n.beats) - max(a, n.beat) }
             }
-            let low = (bassNotes.isEmpty ? pitched : bassNotes)
-                .filter { $0.beat < b - 0.25 && $0.beat + $0.beats > a + 0.05 }.map(\.note).min()
-            let top = weight.values.max() ?? 0
-            let pcs = weight.filter { $0.value >= max(0.2, top * 0.2) }.keys
-            if let low, pcs.count + 1 >= 3 {
-                last = detectChord([low] + pcs.map { 60 + mod12($0 - 60) + 12 }) ?? last
+        }
+        for n in bassNotes.isEmpty ? pitched : bassNotes {
+            guard let range = span(n) else { continue }
+            for w in range {
+                let a = Double(w) * 2, b = a + 2
+                if n.beat < b - 0.25 && n.beat + n.beats > a + 0.05 { lowest[w] = min(lowest[w], n.note) }
+            }
+        }
+        for w in 0..<windows {
+            let top = weight[w].max() ?? 0
+            let pcs = (0..<12).filter { weight[w][$0] > 0 && weight[w][$0] >= max(0.2, top * 0.2) }
+            if lowest[w] != Int.max, pcs.count + 1 >= 3 {
+                let key = pcs.reduce(0) { $0 | 1 << $1 } << 4 | mod12(lowest[w])
+                if named[key] == nil { named[key] = .some(detectChord([lowest[w]] + pcs.map { 60 + mod12($0 - 60) + 12 })) }
+                last = named[key]! ?? last
             }
             chords.append(last)
         }
@@ -310,6 +328,18 @@ public struct PhraseMiner {
                     }) {
                         notes[i].to = k
                         notes[i].alt = notes[i].p - notes[k].p
+                    }
+                }
+                // each player sits a little ahead of or behind their click: line the phrase up by its notes on the
+                // beat, then pull those halfway onto it; swing and sixteenth feel in between stay as played
+                let onBeat = notes.map { $0.t - $0.t.rounded() }.filter { abs($0) < 0.12 }.sorted()
+                if onBeat.count >= 4 {
+                    let offset = onBeat[onBeat.count / 2]
+                    for x in notes.indices {
+                        var t = notes[x].t - offset
+                        let d = t - t.rounded()
+                        if abs(d) < 0.1 { t = t.rounded() + d * 0.5 }
+                        notes[x].t = max(0, t)
                     }
                 }
                 var h = Hasher()
@@ -533,7 +563,7 @@ extension Engine {
         // density drops the softest notes, and a chromatic step goes with the note it leads into
         func kept(_ j: Int) -> Bool { phrase.notes[j].v >= p.phraseFloor && (phrase.notes[j].to.map { phrase.notes[$0].v >= p.phraseFloor } ?? true) }
         for j in p.phraseSteps[step] ?? [] where kept(j) {
-            let due = stepTime(k) + (phrase.notes[j].t * 4 - Double(step)) * stepDuration
+            let due = stepTime(k) + latency + (phrase.notes[j].t * 4 - Double(step)) * stepDuration
             heap.push(due, .phrase(part: i, phrase: cur, note: j, due: due))
         }
     }
@@ -558,6 +588,10 @@ extension Engine {
         var n = phrase.place(j, over: chord, offset: p.phraseOffset)
         if landing {
             n += mod12(chord.bass - n + 6) - 6
+        } else if p.kind == .comp && phrase.notes[j].d > 0.3 && !chord.tones.contains(mod12(n)) {
+            // a held keyboard note plays a note of the chord as held, as an arranger does: a 13th or 11th from
+            // a theoretical scale can clash with the song's key; quick passing notes keep their color
+            n = chord.tones.map { n + mod12($0 - n + 6) - 6 }.min { abs($0 - n) < abs($1 - n) } ?? n
         } else if p.kind == .bass && [1, 3, 5].contains(phrase.notes[j].deg) && phrase.notes[j].d > 0.5 && phrase.notes[j].to == nil {
             // a 9th, 11th or 13th held in a bass line sounds like a wrong note over another chord: the nearest chord tone
             let tones = chord.core
@@ -573,9 +607,15 @@ extension Engine {
         let p = parts[i]
         guard !p.mute, gated, let chord, let bank = phraseBank else { return }
         let phrase = bank.phrases[cur], src = phrase.notes[j]
-        let landing = p.kind == .bass && p.landed != chord
-        guard let note = placed(p, phrase, j, chord, landing: landing) else { return }
-        if p.kind == .bass { p.landed = chord }
+        // a push: struck in the last half beat of a bar and ringing into the next, it belongs to the next chord,
+        // the one the player is expected to change to
+        let barEnd = (src.t / 4).rounded(.down) * 4 + 4
+        let push = src.t >= barEnd - 0.5 && src.t + src.d > barEnd + 0.1
+        let justChanged = t - chordTime < 0.5 * 60 / tempo   // the player has already changed: that's the chord
+        let over = push && !justChanged ? expectedNext() ?? chord : chord
+        let landing = p.kind == .bass && p.landed != over
+        guard let note = placed(p, phrase, j, over, landing: landing) else { return }
+        if p.kind == .bass { p.landed = over }
         p.sounding.removeAll { active[$0.key]?.token != $0.token || (!p.mono && $0.off <= t + 1e-9) }
         let k = key(p, note)
         if p.sounding.contains(where: { $0.key == k && t - $0.on < 0.03 }) { return }   // two notes of one chord landed together

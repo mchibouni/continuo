@@ -66,6 +66,8 @@ public struct Config: Codable {
     public var latch: Bool?        // keep playing the last chord after the keys come up
     public var autoStart: Bool?    // the first chord starts the band
     public var settle: Double?     // ms to wait for the rest of a chord's notes
+    public var latency: Double?    // ms the whole band plays behind the beat, so a chord played on the beat is
+                                   // read before any part needs it and no part ever waits for it
     public var outputs: [OutputSpec]?
     public var clockOut: [String]?
     public var parts: [PartSpec]

@@ -56,7 +56,7 @@ public func rehearse(_ config: Config, chords: [Chord], barsPerChord: Int = 1, l
         }
         if j == 0 { engine.run(until: Double(held.count) * roll + 0.1) }   // the first chord starts the band
     }
-    let start = engine.stepTime(0), end = engine.stepTime(sequence.count * barsPerChord * engine.stepsPerBar)
+    let start = engine.stepTime(0) + engine.latency, end = engine.stepTime(sequence.count * barsPerChord * engine.stepsPerBar) + engine.latency
     engine.run(until: end)
     engine.stop(at: end)
     return Rehearsal(engine: engine, recorder: recorder, chords: taken, start: start, end: end)
@@ -119,7 +119,11 @@ extension Rehearsal {
                 sounding[m.part, default: 0] += 1
                 if !p.range.contains(note) { problems.append("\(what) is outside \(noteName(p.range.lowerBound))-\(noteName(p.range.upperBound))") }
                 if p.mono && !p.legato && sounding[m.part]! > 1 { problems.append("\(what) overlaps another note of a mono part") }
-                if p.kind != .bass && p.kind != .drums, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)), !resolves(x, c) { problems.append("\(what) is not in \(c)") }
+                // a push: struck just before a chord change, it belongs to the chord that comes
+                let pushed = chords.first { $0.time > m.time && $0.time - m.time < 0.5 * 60 / e.tempo + e.latency }.map { $0.chord.palette(1).contains(mod12(note)) } ?? false
+                if p.kind != .bass && p.kind != .drums, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)), !resolves(x, c), !pushed {
+                    problems.append("\(what) is not in \(c)")
+                }
             } else {
                 if on[key] == nil { problems.append("\(what) ended without starting") }
                 on[key] = nil
