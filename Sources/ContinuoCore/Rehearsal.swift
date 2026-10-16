@@ -102,7 +102,7 @@ extension Rehearsal {
         let messages = recorder.messages.filter { $0.part >= 0 }
         func resolves(_ x: Int, _ c: Chord) -> Bool {
             let m = messages[x], note = Int(m.bytes[1])
-            return messages[(x + 1)...].prefix { $0.time - m.time < 0.6 }.contains { n in
+            return messages[(x + 1)...].prefix { $0.time - m.time < 60 / e.tempo + 0.05 }.contains { n in
                 n.part == m.part && n.bytes[0] & 0xF0 == 0x90 && n.time > m.time + 0.005
                     && (1...2).contains(abs(Int(n.bytes[1]) - note)) && c.palette(1).contains(mod12(Int(n.bytes[1])))
             }

@@ -327,11 +327,16 @@ public struct PhraseMiner {
 // MARK: playing phrases
 
 extension Engine {
-    /// A part's phrase candidates: its role, from its styles.
-    func phraseCandidates(_ p: Part) -> [Int] {
+    /// A part's phrase candidates: its role, from its styles. `wide` lets a keyboard part play
+    /// whatever its groove's keyboard player played there: chords first, then pads, then lines.
+    func phraseCandidates(_ p: Part, wide: Bool = false) -> [Int] {
         guard let bank = phraseBank, let setting = p.phrases else { return [] }
         let tags = setting == "any" ? nil : Set(setting.split(separator: ",").map(String.init))
         let c = bank.candidates(p.phraseRole, tags: tags)
+        if wide && p.kind == .comp {
+            let others: [PhraseRole] = p.phraseRole == .pad ? [.keys, .line] : [.pad, .line]
+            return c + others.flatMap { bank.candidates($0, tags: tags) }
+        }
         return c.isEmpty && p.phraseRole == .pad ? bank.candidates(.keys, tags: tags) : c
     }
 
@@ -343,17 +348,28 @@ extension Engine {
         let ph = bank.phrases
         let members = parts.indices.filter { parts[$0].phrases != nil && !parts[$0].mute }
         var cands: [Int: [Int]] = [:]
-        for i in members { cands[i] = phraseCandidates(parts[i]) }
-        // the band's section, or when the song has none by that name, its biggest one
-        func inSection(_ list: [Int]) -> [Int] {
-            let here = list.filter { ph[$0].section.lowercased() == section }
-            if !here.isEmpty || list.isEmpty { return here.isEmpty ? list : here }
-            let bySection = Dictionary(grouping: list) { ph[$0].section.lowercased() }
-            let biggest = bySection.keys.max { (bySection[$0]!.count, $1) < (bySection[$1]!.count, $0) }!
-            return bySection[biggest]!
+        for i in members { cands[i] = phraseCandidates(parts[i], wide: true) }
+        // the band's section, or when the song has none by that name, the one most of the band can
+        // play: every part plays from the same section
+        func sectionOf(_ song: String) -> String {
+            let all = members.flatMap { i in cands[i]!.filter { ph[$0].song == song } }
+            if all.contains(where: { ph[$0].section.lowercased() == section }) { return section }
+            var players: [String: Set<Int>] = [:], count: [String: Int] = [:]
+            for i in members {
+                for j in cands[i]! where ph[j].song == song {
+                    let s = ph[j].section.lowercased()
+                    players[s, default: []].insert(i); count[s, default: 0] += 1
+                }
+            }
+            return players.keys.max { (players[$0]!.count, count[$0]!, $1) < (players[$1]!.count, count[$1]!, $0) } ?? section
+        }
+        func inSection(_ list: [Int], _ s: String) -> [Int] {
+            let here = list.filter { ph[$0].section.lowercased() == s }
+            return here.isEmpty ? list : here
         }
         func takes(_ song: String) -> [Int] {
-            Array(Set(inSection(members.flatMap { cands[$0]!.filter { ph[$0].song == song } }).map { ph[$0].order })).sorted()
+            let s = sectionOf(song)
+            return Array(Set(inSection(members.flatMap { cands[$0]!.filter { ph[$0].song == song } }, s).map { ph[$0].order })).sorted()
         }
         var order: Int? = nil
         if let song = bandSong {
@@ -383,16 +399,20 @@ extension Engine {
         guard let order, let song = bandSong else { return }
         (bandOrder, bandStep, bandPlays) = (order, k, bandPlays + 1)
         var bars = 0
+        let playing = sectionOf(song)
         for i in members {
-            let mine = inSection(cands[i]!.filter { ph[$0].song == song })
-            guard let pick = mine.min(by: { (abs(ph[$0].order - order), ph[$0].name) < (abs(ph[$1].order - order), ph[$1].name) })
-            else { continue }   // the song has nothing for this part: it picks its own
+            let role = parts[i].phraseRole
+            let mine = inSection(cands[i]!.filter { ph[$0].song == song }, playing)
+            // its own role at the band's take first, then the nearest take, then another role
+            guard let pick = mine.min(by: { a, b in
+                (ph[a].role == role ? 0 : 1, abs(ph[a].order - order), ph[a].name) < (ph[b].role == role ? 0 : 1, abs(ph[b].order - order), ph[b].name)
+            }) else { continue }   // the song has nothing for this part: it picks its own
             startPhrase(i, pick, at: k)
             parts[i].phraseSong = song
             bars = max(bars, ph[pick].bars)
         }
         bandBars = max(1, bars)
-        onLog("band: \((song as NSString).lastPathComponent) \(section) take \(order)")
+        onLog("band: \((song as NSString).lastPathComponent) \(playing) take \(order)")
     }
 
     /// A part's own next phrase, when the band's song has none for it: the next of its own
@@ -486,7 +506,7 @@ extension Engine {
         let landing = p.kind == .bass && p.landed != chord
         guard let note = placed(p, phrase, j, chord, landing: landing) else { return }
         if p.kind == .bass { p.landed = chord }
-        p.sounding.removeAll { $0.off <= t + 1e-9 || active[$0.key]?.token != $0.token }
+        p.sounding.removeAll { active[$0.key]?.token != $0.token || (!p.mono && $0.off <= t + 1e-9) }
         let k = key(p, note)
         if p.sounding.contains(where: { $0.key == k && t - $0.on < 0.03 }) { return }   // two notes of one chord landed together
         if p.mono {
@@ -515,10 +535,11 @@ extension Engine {
         if p.kind == .bass {
             // a bass plays again on a change: what it holds ends, and unless its line has a note
             // coming right away, it lands the new chord's bass note for the rest of that note
-            var held = p.sounding.filter { $0.off > t + 0.05 && active[$0.key]?.token == $0.token }
-            guard !held.isEmpty else { return }
-            for s in held { endNote(s.key, s.token, at: t, part: i) }
-            p.sounding.removeAll { s in held.contains { $0.token == s.token } }
+            let ringing = p.sounding.filter { active[$0.key]?.token == $0.token }
+            var held = ringing.filter { $0.off > t + 0.05 }
+            guard !ringing.isEmpty else { return }
+            for s in ringing { endNote(s.key, s.token, at: t, part: i) }
+            p.sounding = []
             if let cur = p.phrase, !phraseNoteSoon(p, bank.phrases[cur], after: t, within: 0.15), let s = held.popLast(),
                let note = placed(p, bank.phrases[s.phrase], s.note, chord, landing: true) {
                 let token = startNote(i, note, s.velocity, at: t, until: s.off)
