@@ -115,8 +115,7 @@
         },
         "arp": {
           "style": "up16",
-          "phrases": "house",
-          "mute": false,
+          "mute": true,
           "program": 81
         },
         "pad": {

@@ -109,7 +109,7 @@ public let standardJSON = """
         "arp": { "style": "broken", "mute": true }, "pad": { "voicings": "soul", "mute": true } } },
     { "name": "house", "swing": 52, "feel": 16, "parts": {
         "bass": { "style": "octaves", "phrases": "house" }, "keys": { "style": "offbeat", "phrases": "house", "voicings": "house,soul", "mute": false },
-        "arp": { "style": "up16", "phrases": "house", "mute": false }, "pad": { "voicings": "house", "mute": false } } },
+        "arp": { "style": "up16", "mute": true }, "pad": { "voicings": "house", "mute": false } } },
     { "name": "jazz", "swing": 64, "feel": 8, "parts": {
         "bass": { "style": "walk", "phrases": "jazz" }, "keys": { "style": "charleston", "phrases": "jazz", "voicings": "jazz,solo", "mute": false },
         "arp": { "mute": true }, "pad": { "voicings": "jazz,solo", "mute": true } } },

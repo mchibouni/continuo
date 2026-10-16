@@ -517,7 +517,14 @@ extension Engine {
             p.sounding = []
         }
         let velocity = p.velLo + (max(1, src.v) - 1) * (p.velHi - p.velLo) / 126
-        let off = t + max(0.03, src.d * 60 / tempo)
+        var beats = src.d
+        if p.kind == .bass {
+            // a bass holds its note until just before the next one (pianists' left hands let go early), never
+            // past two beats unless the player held it longer; `gate` sets how much of the gap it fills
+            let next = phrase.notes[(j + 1)...].first { $0.t > src.t + 0.03 }?.t ?? Double(phrase.bars * 4)
+            beats = max(src.d, min((next - src.t) * (p.gate ?? 0.92), max(src.d, 2)))
+        }
+        let off = t + max(0.03, beats * 60 / tempo)
         let token = startNote(i, note, velocity, at: t, until: off)
         p.sounding.append((k, token, cur, j, t, off, velocity))
         p.lastNote = note

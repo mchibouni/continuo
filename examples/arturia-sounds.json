@@ -1,12 +1,56 @@
 {
-  "parts": { "bass": "Mini V4", "keys": "Stage-73 V2", "pad": "Jup-8 V4", "arp": "Jup-8 V4" },
-  "scenes": {
-    "funk":   { "keys": "Clavinet V" },
-    "house":  { "keys": "Piano V3", "arp": "Prophet-5 V" },
-    "jazz":   { "keys": "Piano V3", "bass": "gm" },
-    "ballad": { "keys": "Piano V3", "bass": "gm" },
-    "drive":  { "keys": "Piano V3" }
+  "parts": {
+    "bass": "Mini V4",
+    "keys": "Stage-73 V2",
+    "pad": "Jup-8 V4",
+    "arp": "Jup-8 V4"
   },
-  "gain": { "Mini V4": -5, "Jup-8 V4": -9, "Prophet-5 V": -8, "Clavinet V": 2, "Wurli V3": 4 },
-  "reverb": 14
+  "scenes": {
+    "funk": {
+      "keys": "Clavinet V"
+    },
+    "house": {
+      "keys": "Piano V3",
+      "arp": "Prophet-5 V"
+    },
+    "jazz": {
+      "keys": "Piano V3",
+      "bass": "gm"
+    },
+    "ballad": {
+      "keys": "Piano V3",
+      "bass": "gm"
+    },
+    "drive": {
+      "keys": "Piano V3"
+    }
+  },
+  "gain": {
+    "Mini V4": -2,
+    "Jup-8 V4": -9,
+    "Prophet-5 V": -8,
+    "Clavinet V": 2,
+    "Wurli V3": 4
+  },
+  "reverb": 14,
+  "params": {
+    "Mini V4": {
+      "Osc 1 Range": 0.5,
+      "Osc 1 Waveform": 0.0,
+      "Osc 1 Volume": 1.0,
+      "Osc 2 Range": 0.35,
+      "Osc 2 Waveform": 0.0,
+      "Osc 2 Volume": 0.4,
+      "Osc 3 Range": 0.5,
+      "Osc 3 Waveform": 0.2,
+      "Osc 3 Volume": 0.15,
+      "Filter Cutoff": 0.45,
+      "Filter Emphasis": 0.0,
+      "Filter Contour Amount": 0.15,
+      "VCF Decay": 0.25,
+      "VCF Sustain": 0.6,
+      "Glide Amount": 0.0,
+      "Noise Volume": 0.0
+    }
+  }
 }

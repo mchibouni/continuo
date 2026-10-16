@@ -4,7 +4,11 @@
 //
 //   { "parts": { "bass": "Mini V4", "keys": "Stage-73 V2", "pad": "Jup-8 V4" },
 //     "scenes": { "funk": { "keys": "Clavinet V" }, "jazz": { "bass": "gm" } },
-//     "gain": { "Mini V4": -4 }, "reverb": 14 }
+//     "gain": { "Mini V4": -4 }, "reverb": 14,
+//     "params": { "Mini V4": { "Filter Cutoff": 0.45, "Osc 1 Waveform": 0 } } }
+//
+// `params` sets a plugin's parameters by their displayed name, 0-1, on top of the patch it
+// opens with: the way to shape a sound when the plugin won't let a host pick its presets.
 //
 // "gm" is the built-in synth with the part's program. Plugins play the patch they open with
 // and never get program changes. Plugins only show up for processes in the user's login
@@ -19,6 +23,7 @@ struct SoundsFile: Codable {
     var scenes: [String: [String: String]]?
     var gain: [String: Double]?   // dB, by plugin or part name
     var reverb: Double?           // wet %, 0 for none
+    var params: [String: [String: Double]]?   // plugin → parameter name → value 0-1
 
     static func load(_ url: URL) throws -> SoundsFile { try JSONDecoder().decode(SoundsFile.self, from: Data(contentsOf: url)) }
 
@@ -72,6 +77,13 @@ enum Sounds {
                 throw ConfigError("no instrument plugin called \(name) here (continuo sounds lists them; plugins only show up in your login session)")
             }
             let unit = try await AVAudioUnit.instantiate(with: component.audioComponentDescription, options: [])
+            if let set = sounds.params?[name] {
+                let all = unit.auAudioUnit.parameterTree?.allParameters ?? []
+                for (param, value) in set {
+                    guard let p = all.first(where: { $0.displayName == param }) else { throw ConfigError("\(name) has no parameter called \(param)") }
+                    p.value = AUValue(min(1, max(0, value)) * Double(p.maxValue - p.minValue) + Double(p.minValue))
+                }
+            }
             engine.attach(unit)
             engine.connect(unit, to: engine.mainMixerNode, format: format)
             (unit as? AVAudioMixing)?.volume = Float(pow(10, db / 20))
