@@ -28,6 +28,13 @@ continuo render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it
   notes and thirds in the bass.
 - **Keys** play rootless voicings (3rd and 7th first, then tensions) and move as little as
   possible from the last chord. Dm9 → G13 → Cmaj9 comes out as C F G E → B F A E → B D A E.
+- **Players' voicings:** with a voicing bank, keys parts play the shapes pianists actually
+  used instead. `continuo mine` reads MIDI files of real playing, names every chord struck,
+  sets the left hand's bass aside and keeps the rest as a shape, tagged with the style you
+  give it. A part then plays the shape that moves least from its last voicing and sits well
+  in its range, preferring shapes players used often. From a bank of jazz piano, Dm9 → G13 →
+  Cmaj9 comes out as C E F A → B E F A → B D E G. Chords the bank has never seen fall back to
+  the rules above.
 - **Chord changes:** a chord is named once its notes have all arrived, 15 ms after the last
   one. A hit that falls due while a chord is still arriving waits for it, up to 60 ms. A
   chord that arrives after a hit has started re-voices whatever is still sounding and keeps
@@ -47,6 +54,8 @@ continuo ctl set bass.density 0.4        # any part setting from the config
 continuo ctl mute arp | unmute arp | toggle pad
 continuo render Am7 D9 Gmaj7 --audio a.m4a --json a.json   # render audio (built-in GM synth) and note data
 continuo chord D2 F2 A2 C3 E3            # name the chord in some notes (C3 = 60)
+continuo mine --tag jazz ~/MIDI/jazz --tag soul ~/MIDI/soul   # build the voicing bank
+continuo voicings Dm9 G13 --tag jazz     # what the bank plays for some chords
 continuo ports                           # MIDI sources and destinations
 continuo init                            # write the standard config to edit
 ```
@@ -67,11 +76,26 @@ steer the band: a controller script, Hammerspoon, a shell alias.
   complexity, velocity, voices, swing, loop length, variation…
 - `program`: a part setting (1-128) sent as a program change when the band starts and when
   a scene changes it. `examples/general-midi.json` uses it to pick General MIDI sounds per scene.
+- `voicings`: a keys part setting: the bank's styles to voice from (`"jazz"`, `"fusion,soul"`),
+  `"any"` (the default) or `"rules"` for the built-in voicer. The standard scenes pick a style each.
 - `scenes`: per-part overrides, plus tempo and swing
 - `clockOut`: outputs that get MIDI clock and start/stop, so a drum machine follows the band
 
 Some hosts enable every new MIDI input automatically. When Continuo's port appears, make sure
 each instrument listens only to its own part's channel.
+
+## The voicing bank
+
+`continuo mine` writes the bank to `~/.config/continuo/bank.json`, and `run` and `render` use
+it from there (`--bank <file>` picks another, `--bank none` plays without one). It reads
+standard MIDI files, a folder at a time, each under the style named by the `--tag` before it.
+Drums and bass channels are skipped, and every other channel counts as one player. A shape
+has to turn up twice (`--min`) to stay, and a pattern repeated over and over in one file
+counts three times at most, so one loop can't drown out the rest.
+
+The bank is built from your own MIDI files and stays on your machine: most commercial MIDI
+packs allow use in your music but not sharing the files, and a bank is close enough to them
+that it shouldn't be shared either.
 
 ## Testing without sound
 

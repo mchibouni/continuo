@@ -27,12 +27,14 @@ public struct Rehearsal {
 /// Plays `chords` into a fresh engine the way a left hand would: each chord a little rolled
 /// (`roll` seconds between notes), `late` seconds after its bar line (negative is early).
 public func rehearse(_ config: Config, chords: [Chord], barsPerChord: Int = 1, loops: Int = 1,
-                     scene: String? = nil, late: Double = 0, roll: Double = 0.004) throws -> Rehearsal {
+                     scene: String? = nil, late: Double = 0, roll: Double = 0.004,
+                     bank: VoicingBank? = nil) throws -> Rehearsal {
     var config = config
     config.inputs = [InputSpec(port: "rehearsal", channel: nil, zone: nil)]
     config.autoStart = true
     let recorder = Recorder()
     let engine = try Engine(config: config, sink: recorder)
+    engine.bank = bank
     var taken: [(time: Double, chord: Chord)] = []
     engine.onChord = { taken.append(($0, $1)) }
     if let scene { try engine.applyScene(scene, at: 0) }

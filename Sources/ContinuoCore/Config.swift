@@ -29,6 +29,8 @@ public struct PartSpec: Codable {
     public var legato: Bool?         // mono notes overlap a little, for glide
     public var retrigger: Bool?      // a held note changes when the chord does
     public var rootless: Bool?       // comp: leave the root to the bass
+    public var voicings: String?     // comp: the bank's styles to voice from ("jazz", "fusion,soul"),
+                                     // "any" for all of them, "rules" for the built-in voicer
     public var program: Int?         // 1-128: a program change sent when the band starts
 }
 
@@ -101,23 +103,26 @@ public let standardJSON = """
   ],
   "scenes": [
     { "name": "funk", "swing": 56, "feel": 16, "parts": {
-        "bass": { "style": "funk" }, "keys": { "style": "stabs", "mute": false },
-        "arp": { "style": "broken", "mute": false }, "pad": { "mute": true } } },
+        "bass": { "style": "funk" }, "keys": { "style": "stabs", "voicings": "soul,fusion", "mute": false },
+        "arp": { "style": "broken", "mute": false }, "pad": { "voicings": "soul", "mute": true } } },
     { "name": "house", "swing": 52, "feel": 16, "parts": {
-        "bass": { "style": "octaves" }, "keys": { "style": "offbeat", "mute": false },
-        "arp": { "style": "up16", "mute": false }, "pad": { "mute": false } } },
+        "bass": { "style": "octaves" }, "keys": { "style": "offbeat", "voicings": "house,soul", "mute": false },
+        "arp": { "style": "up16", "mute": false }, "pad": { "voicings": "house", "mute": false } } },
     { "name": "jazz", "swing": 64, "feel": 8, "parts": {
-        "bass": { "style": "walk" }, "keys": { "style": "charleston", "mute": false },
-        "arp": { "mute": true }, "pad": { "mute": true } } },
+        "bass": { "style": "walk" }, "keys": { "style": "charleston", "voicings": "jazz", "mute": false },
+        "arp": { "mute": true }, "pad": { "voicings": "jazz", "mute": true } } },
     { "name": "bossa", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "bossa" }, "keys": { "style": "bossa", "mute": false },
+        "bass": { "style": "bossa" }, "keys": { "style": "bossa", "voicings": "jazz", "mute": false },
         "arp": { "style": "updown8", "density": 0.4, "mute": false }, "pad": { "mute": true } } },
     { "name": "ballad", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "rootfive", "density": 0.5 }, "keys": { "style": "ballad", "mute": false },
-        "arp": { "style": "updown8", "density": 0.5, "mute": false }, "pad": { "mute": false } } },
+        "bass": { "style": "rootfive", "density": 0.5 }, "keys": { "style": "ballad", "voicings": "jazz,soul", "mute": false },
+        "arp": { "style": "updown8", "density": 0.5, "mute": false }, "pad": { "voicings": "soul,jazz", "mute": false } } },
     { "name": "drive", "swing": 50, "feel": 16, "parts": {
-        "bass": { "style": "pedal" }, "keys": { "style": "gate", "mute": false },
-        "arp": { "style": "random", "mute": false }, "pad": { "mute": true } } }
+        "bass": { "style": "pedal" }, "keys": { "style": "gate", "voicings": "pop,fusion", "mute": false },
+        "arp": { "style": "random", "mute": false }, "pad": { "mute": true } } },
+    { "name": "fusion", "swing": 52, "feel": 16, "parts": {
+        "bass": { "style": "funk" }, "keys": { "style": "funk16", "voicings": "fusion", "complexity": 0.8, "mute": false },
+        "arp": { "mute": true }, "pad": { "voicings": "fusion", "mute": false } } }
   ],
   "startScene": "funk"
 }

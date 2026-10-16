@@ -42,6 +42,7 @@ public final class Part {
     public internal(set) var seed: UInt64 = 1
     public internal(set) var mute = false, mono = false, legato = false, retrigger = true, rootless = false
     public internal(set) var program: Int? = nil
+    public internal(set) var voicings = "any"   // comp: bank styles, "any", or "rules"
 
     var counter = 0, loopIndex = -1
     var lastNote: Int? = nil
@@ -59,7 +60,7 @@ public final class Part {
     func reset() {
         style = styles.first { $0.kind == kind }!
         density = 0.75; accent = 0.5; vary = 0; humanize = 4; gate = nil; swing = nil; feel = nil
-        octave = 0; loop = 2; mute = false; legato = false; program = nil
+        octave = 0; loop = 2; mute = false; legato = false; program = nil; voicings = "any"
         seed = name.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
         switch kind {
         case .bass:
@@ -146,6 +147,8 @@ public final class Engine {
     let config: Config
     public var onLog: (String) -> Void = { _ in }
     public var onChord: (Double, Chord) -> Void = { _, _ in }
+    /// Players' voicings for the keys parts; without one they use the built-in voicer.
+    public var bank: VoicingBank? = nil
 
     public private(set) var tempo = 100.0, swing = 50.0, feel = 16, stepsPerBar = 16
     var latch = true, autoStart = true, settle = 0.015
@@ -240,6 +243,11 @@ public final class Engine {
         if let v = s.legato { p.legato = v }
         if let v = s.retrigger { p.retrigger = v }
         if let v = s.rootless { p.rootless = v }
+        if let v = s.voicings {
+            let tags = v.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+            guard !tags.isEmpty else { throw ConfigError("\(p.name): voicings needs a style, any or rules") }
+            p.voicings = tags.joined(separator: ",")
+        }
         if let v = s.program {
             guard (1...128).contains(v) else { throw ConfigError("\(p.name): program \(v) is not 1-128") }
             p.program = v
@@ -435,8 +443,13 @@ public final class Engine {
             p.lastNote = n
             return [n]
         case .comp:
-            let full = voice(chord, voices: p.voices, lo: p.range.lowerBound, hi: p.range.upperBound,
-                             complexity: p.complexity, rootless: p.rootless, previous: previous)
+            let r = p.range
+            let tags = p.voicings == "any" ? nil : Set(p.voicings.split(separator: ",").map(String.init))
+            let played = p.voicings == "rules" ? nil
+                : bank?.voice(chord, voices: p.voices, lo: r.lowerBound, hi: r.upperBound, complexity: p.complexity,
+                              rootless: p.rootless, tags: tags, previous: previous)
+            let full = played ?? voice(chord, voices: p.voices, lo: r.lowerBound, hi: r.upperBound,
+                                       complexity: p.complexity, rootless: p.rootless, previous: previous)
             p.voicing = full
             switch role {
             case "T": return Array(full.suffix(max(2, (full.count + 1) / 2)))
@@ -663,7 +676,7 @@ public final class Engine {
         var s = "\(p.name.padding(toLength: 6, withPad: " ", startingAt: 0)) \(p.style.name.padding(toLength: 10, withPad: " ", startingAt: 0))"
         s += " ch\(p.channel + 1) → \(outputNames[p.output])  density \(fmt(p.density)) complexity \(fmt(p.complexity))"
         s += "  \(noteName(r.lowerBound))-\(noteName(r.upperBound))"
-        if p.kind == .comp { s += " \(p.voices) voices" }
+        if p.kind == .comp { s += " \(p.voices) voices" + (bank == nil ? "" : ", voicings \(p.voicings)") }
         if p.vary > 0 { s += " vary \(fmt(p.vary))" }
         return s + (p.mute ? "  (muted)" : "")
     }

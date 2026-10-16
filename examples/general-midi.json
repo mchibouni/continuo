@@ -78,6 +78,7 @@
         "keys": {
           "style": "stabs",
           "mute": false,
+          "voicings": "soul,fusion",
           "program": 8
         },
         "arp": {
@@ -87,6 +88,7 @@
         },
         "pad": {
           "mute": true,
+          "voicings": "soul",
           "program": 90
         }
       },
@@ -104,6 +106,7 @@
         "keys": {
           "style": "offbeat",
           "mute": false,
+          "voicings": "house,soul",
           "program": 1
         },
         "arp": {
@@ -113,6 +116,7 @@
         },
         "pad": {
           "mute": false,
+          "voicings": "house",
           "program": 90
         }
       },
@@ -130,6 +134,7 @@
         "keys": {
           "style": "charleston",
           "mute": false,
+          "voicings": "jazz",
           "program": 5
         },
         "arp": {
@@ -138,6 +143,7 @@
         },
         "pad": {
           "mute": true,
+          "voicings": "jazz",
           "program": 90
         }
       },
@@ -155,6 +161,7 @@
         "keys": {
           "style": "bossa",
           "mute": false,
+          "voicings": "jazz",
           "program": 25
         },
         "arp": {
@@ -183,6 +190,7 @@
         "keys": {
           "style": "ballad",
           "mute": false,
+          "voicings": "jazz,soul",
           "program": 1
         },
         "arp": {
@@ -193,6 +201,7 @@
         },
         "pad": {
           "mute": false,
+          "voicings": "soul,jazz",
           "program": 49
         }
       },
@@ -210,6 +219,7 @@
         "keys": {
           "style": "gate",
           "mute": false,
+          "voicings": "pop,fusion",
           "program": 91
         },
         "arp": {
@@ -223,6 +233,34 @@
         }
       },
       "tempo": 120
+    },
+    {
+      "name": "fusion",
+      "swing": 52,
+      "feel": 16,
+      "parts": {
+        "bass": {
+          "style": "funk",
+          "program": 36
+        },
+        "keys": {
+          "style": "funk16",
+          "voicings": "fusion",
+          "complexity": 0.8,
+          "mute": false,
+          "program": 5
+        },
+        "arp": {
+          "mute": true,
+          "program": 82
+        },
+        "pad": {
+          "voicings": "fusion",
+          "mute": false,
+          "program": 90
+        }
+      },
+      "tempo": 108
     }
   ],
   "startScene": "funk"

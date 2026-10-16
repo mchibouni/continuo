@@ -82,6 +82,62 @@ final class ContinuoCoreTests: XCTestCase {
         XCTAssertEqual(r.engine.corrections, 0)
     }
 
+    // A type 0 MIDI file at 120 BPM, one chord per beat, each held most of a beat.
+    func smf(_ chords: [[Int]]) -> Data {
+        func vlq(_ v: Int) -> [UInt8] {
+            var v = v, out = [UInt8(v & 0x7F)]
+            v >>= 7
+            while v > 0 { out.insert(UInt8(v & 0x7F) | 0x80, at: 0); v >>= 7 }
+            return out
+        }
+        var track: [UInt8] = [0, 0xFF, 0x51, 3, 0x07, 0xA1, 0x20]
+        for (j, c) in chords.enumerated() {
+            // rolled 5 ticks a note, held 400 ticks, the next chord on the next beat
+            for (i, n) in c.enumerated() { track += vlq(i > 0 ? 5 : j > 0 ? 80 - 5 * (c.count - 1) : 0) + [0x90, UInt8(n), 80] }
+            for (i, n) in c.enumerated() { track += vlq(i == 0 ? 400 : 0) + [0x80, UInt8(n), 0] }
+        }
+        track += [0, 0xFF, 0x2F, 0]
+        func be(_ v: Int, _ n: Int) -> [UInt8] { (0..<n).reversed().map { UInt8(v >> ($0 * 8) & 0xFF) } }
+        return Data(Array("MThd".utf8) + be(6, 4) + be(0, 2) + be(1, 2) + be(480, 2) + Array("MTrk".utf8) + be(track.count, 4) + track)
+    }
+
+    func testReadsBackItsOwnMIDIFiles() throws {
+        let r = try rehearse(Config.standard, chords: ["Dm9", "G13"].map { parseChord($0)! })
+        let file = try MIDIFile(r.midiFile)
+        XCTAssertEqual(file.notes.count, r.noteOns.count)
+        XCTAssertEqual(file.tempo, r.engine.tempo, accuracy: 0.5)
+        let first = r.noteOns.map(\.time).min()! - r.start
+        XCTAssertEqual(file.notes[0].start, first, accuracy: 0.003)
+    }
+
+    func testMinesAndPlaysPlayersVoicings() throws {
+        // a left-hand D under F A C E, three times, and G under F B E A: Dm9 and G13 as pianists play them
+        let dm9 = [38, 65, 69, 72, 76], g13 = [43, 65, 71, 76, 81]
+        var miner = VoicingMiner()
+        miner.add(try MIDIFile(smf([dm9, g13, dm9, g13, dm9, g13])), tag: "jazz")
+        let bank = miner.bank()
+        XCTAssertEqual(bank.files["jazz"], 1)
+        let d = parseChord("Dm9")!, g = parseChord("G13")!
+        XCTAssertEqual(bank.shapes(for: d).first?.notes, [65, 69, 72, 76])
+        XCTAssertEqual(bank.voice(d, voices: 4, lo: 52, hi: 79, complexity: 0.6, rootless: true, tags: ["soul"], previous: []),
+                       [65, 69, 72, 76], "a style with no voicings falls back to the others")
+        XCTAssertEqual(bank.voice(g, voices: 4, lo: 52, hi: 84, complexity: 0.6, rootless: true, tags: nil, previous: [65, 69, 72, 76]),
+                       [65, 71, 76, 81])
+        XCTAssertNil(bank.voice(parseChord("C7alt")!, voices: 4, lo: 52, hi: 79, complexity: 0.6, rootless: true, tags: nil, previous: []))
+
+        // the keys part plays them in a rehearsal, and only uses the rules when told to
+        var config = Config.standard
+        config.startScene = nil
+        config.scenes = nil
+        config.parts = [PartSpec(name: "keys", kind: .comp, style: "pad", out: "continuo", channel: 3, range: [52, 84])]
+        let r = try rehearse(config, chords: [d, g], late: -0.01, bank: bank)
+        XCTAssertEqual(r.problems, [])
+        XCTAssertEqual(Set(r.noteOns.map { Int($0.bytes[1]) }), Set([65, 69, 72, 76, 71, 81]))
+        config.parts[0].voicings = "rules"
+        let rules = try rehearse(config, chords: [d, g], late: -0.01, bank: bank)
+        XCTAssertNotEqual(Set(rules.noteOns.map { Int($0.bytes[1]) }), Set([65, 69, 72, 76, 71, 81]))
+    }
+
     func testSetCommand() throws {
         let e = try Engine(config: Config.standard, sink: Recorder())
         XCTAssertTrue(e.control("set bass.density 0.3", at: 0).contains("density 0.30"))

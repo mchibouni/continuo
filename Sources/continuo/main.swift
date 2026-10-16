@@ -22,10 +22,15 @@ continuo ctl <command>      talk to the running band:
                                      set arp.range 60 84 (any part setting from the config)
     mute | unmute | toggle <part…|all>
 continuo chord <notes…>     name the chord in some notes (D2 F2 A2 C3 E3, or MIDI numbers)
+continuo mine [--tag <style>] <folders or MIDI files>…   [--tag <style> <more>…]
+                            learn players' voicings into the bank (~/.config/continuo/bank.json);
+                            --out <file>, --min <times a voicing must turn up to stay, 2>
+continuo voicings <chords>  the bank's voicings for some chords, most used first (--tag <style>, --top <n>)
 continuo styles             the rhythms each kind of part can play
 continuo ports              MIDI sources and destinations
 continuo init               write the standard config to ~/.config/continuo/config.json to edit
 Options: --config <file> (default ~/.config/continuo/config.json, else the built-in one)
+         --bank <file|none> (default ~/.config/continuo/bank.json when it exists)
 """
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -51,6 +56,8 @@ func need<T>(_ value: T?, _ message: @autoclosure () -> String) -> T {
 let home = FileManager.default.homeDirectoryForCurrentUser
 let defaultConfig = home.appendingPathComponent(".config/continuo/config.json")
 let configPath = option("--config")
+let defaultBank = home.appendingPathComponent(".config/continuo/bank.json")
+let bankPath = option("--bank")
 
 func loadConfig(quiet: Bool = false) -> Config {
     let url = configPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } ?? defaultConfig
@@ -59,6 +66,18 @@ func loadConfig(quiet: Bool = false) -> Config {
         return Config.standard
     }
     do { return try Config.load(url) } catch { fail("\(url.path): \(error)") }
+}
+
+/// The voicing bank: --bank, else the default one if `continuo mine` has written it.
+func loadBank(quiet: Bool = false) -> VoicingBank? {
+    if bankPath == "none" { return nil }
+    let url = bankPath.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } ?? defaultBank
+    guard bankPath != nil || FileManager.default.fileExists(atPath: url.path) else { return nil }
+    do {
+        let bank = try VoicingBank.load(url)
+        if !quiet { print("voicings from \(url.path): \(bank.shapes.count) shapes (\(bank.tags.joined(separator: ", ")))") }
+        return bank
+    } catch { fail("\(url.path): \(error)") }
 }
 
 // options alone (continuo --gm) mean run
@@ -70,6 +89,7 @@ case "run":
     let config = loadConfig()
     let live: Live
     do { live = try Live(config: config) } catch { fail("\(error)") }
+    live.engine.bank = loadBank()
     if args.contains("--gm") {
         do { live.gm = try GeneralMIDI() } catch { fail("the built-in synth didn't start: \(error)") }
         live.gm!.choosePrograms(live.engine.parts)
@@ -99,7 +119,8 @@ case "render":
     guard !symbols.isEmpty else { fail("continuo render Dm9 G13 Cmaj9 …") }
     let chords = symbols.map { s in need(parseChord(s), "can't read the chord \(s)") }
     do {
-        let r = try rehearse(config, chords: chords, barsPerChord: bars, loops: loops, scene: scene, late: late, roll: roll)
+        let r = try rehearse(config, chords: chords, barsPerChord: bars, loops: loops, scene: scene, late: late, roll: roll,
+                             bank: loadBank())
         print(r.text)
         print("\n\(r.engine.corrections) hits re-voiced after they started (a chord change that came late)")
         let problems = r.problems
@@ -128,6 +149,60 @@ case "chord":
     let notes = args.flatMap { $0.split(separator: " ").map(String.init) }.map { s in need(parseNote(s), "can't read the note \(s)") }
     guard let c = detectChord(notes) else { fail("continuo chord D2 F2 A2 C3 E3") }
     print(c)
+
+case "mine":
+    var tag = "misc", out = defaultBank, minimum = 2, sources: [(path: String, tag: String)] = []
+    var i = 0
+    while i < args.count {
+        let a = args[i], next = i + 1 < args.count ? args[i + 1] : nil
+        switch a {
+        case "--tag": tag = need(next, "--tag needs a style name"); i += 2
+        case "--out": out = URL(fileURLWithPath: (need(next, "--out needs a file") as NSString).expandingTildeInPath); i += 2
+        case "--min": minimum = need(next.flatMap { Int($0) }, "--min needs a number"); i += 2
+        default: sources.append((a, tag)); i += 1
+        }
+    }
+    guard !sources.isEmpty else { fail("continuo mine --tag jazz ~/MIDI/jazz --tag soul ~/MIDI/soul") }
+    var miner = VoicingMiner(), read = 0, unreadable = 0
+    for (path, tag) in sources {
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { fail("\(path) doesn't exist") }
+        let files = isDir.boolValue
+            ? (FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? [])
+                .filter { ["mid", "midi"].contains($0.pathExtension.lowercased()) && !$0.lastPathComponent.hasPrefix("._") }
+                .sorted { $0.path < $1.path }
+            : [url]
+        for f in files {
+            do { miner.add(try MIDIFile(contentsOf: f), tag: tag); read += 1 } catch { unreadable += 1 }
+            if read % 500 == 0 && read > 0 { print("  \(read) files…") }
+        }
+    }
+    let bank = miner.bank(minimum: minimum)
+    do {
+        try FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try bank.write(to: out)
+    } catch { fail("\(out.path): \(error)") }
+    print("read \(read) files" + (unreadable > 0 ? ", \(unreadable) unreadable" : "") + ": \(miner.strikes) chord strikes, \(miner.kept) kept")
+    for t in bank.tags {
+        let mine = bank.shapes.filter { $0.tag == t }
+        print("  \(t.padding(toLength: 8, withPad: " ", startingAt: 0)) \(bank.files[t] ?? 0) files, \(mine.count) voicings")
+    }
+    print("wrote \(out.path) (\(bank.shapes.count) voicings used at least \(minimum) times)")
+
+case "voicings":
+    let tags = option("--tag").map { Set($0.split(separator: ",").map(String.init)) }
+    let top = Int(option("--top") ?? "10") ?? 10
+    let bank = need(loadBank(quiet: true), "no bank yet: continuo mine … writes one to \(defaultBank.path)")
+    guard !args.isEmpty else { fail("continuo voicings Dm9 G13 Cmaj9") }
+    for symbol in args {
+        let c = need(parseChord(symbol), "can't read the chord \(symbol)")
+        let found = bank.shapes(for: c, tags: tags)
+        print("\(c)  (\(found.count) voicings)")
+        for v in found.prefix(top) {
+            print("  " + v.notes.map(noteName).joined(separator: " ").padding(toLength: 30, withPad: " ", startingAt: 0) + " \(v.n)×  \(v.tag)")
+        }
+    }
 
 case "styles":
     for kind in Kind.allCases {
