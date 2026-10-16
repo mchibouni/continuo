@@ -301,8 +301,8 @@ public struct PhraseMiner {
                     let j = job(c, mod12(n.note - c.root))
                     notes.append(PhraseNote(t: max(0, n.beat - a), d: n.beats, v: n.velocity, p: n.note, deg: j.deg, alt: j.alt, root: c.root, to: nil))
                 }
-                // chromatic notes lead into a note a step away, soon after
-                for i in notes.indices where role != .drums {
+                // chromatic notes lead into a note a step away, soon after; a held note is part of the chord
+                for i in notes.indices where role != .drums && notes[i].d <= 0.5 {
                     guard let c = chord(at: notes[i].t + a), !c.palette(1).contains(mod12(notes[i].p)) else { continue }
                     if let k = notes.indices.first(where: { k in
                         k != i && notes[k].t > notes[i].t + 0.01 && notes[k].t - notes[i].t <= 1 && abs(notes[k].p - notes[i].p) <= 2
