@@ -13,7 +13,7 @@
 // ghosts and approach notes, then thirds and sevenths); below their level they fall back to
 // the root, and ghosts drop out.
 
-public enum Kind: String, Codable, CaseIterable { case bass, comp, arp }
+public enum Kind: String, Codable, CaseIterable { case bass, comp, arp, drums }   // drums only play players' phrases
 
 /// How an arp walks the notes of the chord, given the hit count `i` and `n` notes.
 public enum Order: Equatable {

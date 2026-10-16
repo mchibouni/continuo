@@ -3,7 +3,8 @@
     "bass": "Mini V4",
     "keys": "Stage-73 V2",
     "pad": "Jup-8 V4",
-    "arp": "Jup-8 V4"
+    "arp": "Jup-8 V4",
+    "drums": "gm"
   },
   "scenes": {
     "funk": {
@@ -23,6 +24,9 @@
     },
     "drive": {
       "keys": "Piano V3"
+    },
+    "lofi": {
+      "keys": "Wurli V3"
     }
   },
   "gain": {

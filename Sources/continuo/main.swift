@@ -106,6 +106,7 @@ func songAndSection(_ f: URL) -> (song: String, section: String) {
     let sections: Set<String> = ["intro", "verse", "pre_chorus", "chorus", "bridge", "outro", "breakdown", "drop", "build"]
     let dir = f.deletingLastPathComponent(), parent = dir.lastPathComponent.lowercased()
     let grandparent = dir.deletingLastPathComponent()
+    if parent == "fill" || parent == "beat" { return (f.deletingPathExtension().path, parent) }   // drum grooves and fills
     if sections.contains(parent) || grandparent.lastPathComponent.uppercased().hasSuffix("_BPM") {
         return (grandparent.path, parent)
     }

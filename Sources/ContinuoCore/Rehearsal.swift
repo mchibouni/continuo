@@ -119,7 +119,7 @@ extension Rehearsal {
                 sounding[m.part, default: 0] += 1
                 if !p.range.contains(note) { problems.append("\(what) is outside \(noteName(p.range.lowerBound))-\(noteName(p.range.upperBound))") }
                 if p.mono && !p.legato && sounding[m.part]! > 1 { problems.append("\(what) overlaps another note of a mono part") }
-                if p.kind != .bass, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)), !resolves(x, c) { problems.append("\(what) is not in \(c)") }
+                if p.kind != .bass && p.kind != .drums, let c = chord(at: m.time), !c.palette(1).contains(mod12(note)), !resolves(x, c) { problems.append("\(what) is not in \(c)") }
             } else {
                 if on[key] == nil { problems.append("\(what) ended without starting") }
                 on[key] = nil

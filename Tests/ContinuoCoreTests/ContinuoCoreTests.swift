@@ -214,6 +214,46 @@ final class ContinuoCoreTests: XCTestCase {
         }
     }
 
+    func testDrumsPlayTheirGrooveAndFillBeforeTheNextTake() throws {
+        var miner = PhraseMiner()
+        miner.add(try MIDIFile(twoPlayerSMF()), tag: "test", song: "groove", section: "", name: "groove.mid")
+        var bank = miner.bank
+        // a one-bar drum beat and a one-bar fill, both made up: kick on 1 and 3, snare on 2 and 4, hats on the eighths
+        var beat: [PhraseNote] = []
+        for e in 0..<8 { beat.append(PhraseNote(t: Double(e) / 2, d: 0.1, v: 80, p: 42, deg: 0, alt: 0, root: 0, to: nil)) }
+        for b in [0.0, 2.0] { beat.append(PhraseNote(t: b, d: 0.2, v: 100, p: 36, deg: 0, alt: 0, root: 0, to: nil)) }
+        for b in [1.0, 3.0] { beat.append(PhraseNote(t: b, d: 0.2, v: 100, p: 38, deg: 0, alt: 0, root: 0, to: nil)) }
+        let fill = (0..<16).map { PhraseNote(t: Double($0) / 4, d: 0.1, v: 90, p: 45, deg: 0, alt: 0, root: 0, to: nil) }
+        bank = PhraseBank(phrases: bank.phrases + [
+            Phrase(tag: "test", role: .drums, song: "beat", section: "beat", order: 0, name: "beat", tempo: 120, bars: 1, notes: beat),
+            Phrase(tag: "test", role: .drums, song: "fill", section: "fill", order: 0, name: "fill", tempo: 120, bars: 1, notes: fill)],
+                          files: bank.files)
+        var config = Config.standard
+        config.startScene = nil
+        config.scenes = nil
+        config.parts = [PartSpec(name: "keys", kind: .comp, style: "stabs", out: "continuo", channel: 3, phrases: "test"),
+                        PartSpec(name: "drums", kind: .drums, out: "continuo", channel: 10, phrases: "test")]
+        let r = try rehearse(config, chords: ["Dm9", "G13"].map { parseChord($0)! }, barsPerChord: 4, loops: 2, late: -0.01, phrases: bank)
+        XCTAssertEqual(r.problems, [])
+        let drums = r.noteOns.filter { r.engine.parts[$0.part].kind == .drums }
+        XCTAssertTrue(drums.allSatisfy { $0.bytes[0] == 0x99 }, "drums on channel 10")
+        XCTAssertEqual(Set(drums.map { Int($0.bytes[1]) }), [36, 38, 42, 45], "the drummer's own notes, no chord following")
+        // the groove takes 8 bars: the fill (tom 45) is in bar 8 and nowhere else
+        let bar = Double(r.engine.stepsPerBar) * r.engine.stepDuration
+        let fillBars = Set(drums.filter { $0.bytes[1] == 45 }.map { Int(($0.time - r.start) / bar + 0.01) })
+        XCTAssertEqual(fillBars, [7, 15])
+    }
+
+    func testOneKeyIsAMajorChord() throws {
+        let e = try Engine(config: Config.standard, sink: Recorder())
+        e.noteOn(48, channel: 0, input: 0, at: 0)
+        e.run(until: 0.1)
+        XCTAssertEqual(e.chord?.description, "C")
+        e.noteOn(55, channel: 0, input: 0, at: 0.2)
+        e.run(until: 0.3)
+        XCTAssertEqual(e.chord?.description, "C", "a root and its fifth too")
+    }
+
     func testSetCommand() throws {
         let e = try Engine(config: Config.standard, sink: Recorder())
         XCTAssertTrue(e.control("set bass.density 0.3", at: 0).contains("density 0.30"))

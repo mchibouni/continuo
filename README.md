@@ -44,6 +44,11 @@ continuo render Dm9 G13 Cmaj9 A7alt --scene bossa --out demo.mid   # rehearse it
   same song and the same take, so they interlock the way they were written. The band moves
   through a section's takes and stays in it until you change it (`continuo ctl section
   chorus`), or moves to another groove (`continuo ctl next`).
+- **Drums:** a `drums` part plays drummers' grooves from the phrase bank as recorded, on
+  channel 10, and a fill in the last bar before the band's next take, as an arranger does. It
+  plays its band song's own drums when that song has them. Drums have no pattern of their own.
+- **One key is enough:** a single bass note, or a root and its fifth, plays as a major chord,
+  as on an arranger keyboard.
 - **Chord changes:** a chord is named once its notes have all arrived, 15 ms after the last
   one. A hit that falls due while a chord is still arriving waits for it, up to 60 ms. A
   chord that arrives after a hit has started re-voices whatever is still sounding and keeps
@@ -86,7 +91,7 @@ steer the band: a controller script, Hammerspoon, a shell alias.
   the right hand plays freely.
 - `outputs`: Continuo's own virtual port (`"port": "virtual"`, it shows up as "continuo") or any
   destination by name (see `continuo ports`)
-- `parts`: name, kind (`bass`, `comp` or `arp`), style, output, channel, range, density,
+- `parts`: name, kind (`bass`, `comp`, `arp` or `drums`), style, output, channel, range, density,
   complexity, velocity, voices, swing, loop length, variation…
 - `program`: a part setting (1-128) sent as a program change when the band starts and when
   a scene changes it. `examples/general-midi.json` uses it to pick General MIDI sounds per scene.

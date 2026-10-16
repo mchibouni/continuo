@@ -63,6 +63,12 @@
         70
       ],
       "mute": true
+    },
+    {
+      "name": "drums",
+      "kind": "drums",
+      "out": "continuo",
+      "channel": 10
     }
   ],
   "scenes": [
@@ -92,6 +98,9 @@
           "voicings": "soul",
           "mute": true,
           "program": 90
+        },
+        "drums": {
+          "phrases": "funk,soul"
         }
       },
       "tempo": 98
@@ -122,6 +131,9 @@
           "voicings": "house",
           "mute": false,
           "program": 90
+        },
+        "drums": {
+          "phrases": "house,dance"
         }
       },
       "tempo": 122
@@ -151,6 +163,9 @@
           "voicings": "jazz,solo",
           "mute": true,
           "program": 90
+        },
+        "drums": {
+          "phrases": "jazz"
         }
       },
       "tempo": 132
@@ -179,6 +194,9 @@
         "pad": {
           "mute": true,
           "program": 90
+        },
+        "drums": {
+          "phrases": "latin"
         }
       },
       "tempo": 128
@@ -211,6 +229,9 @@
           "voicings": "soul,jazz",
           "mute": false,
           "program": 49
+        },
+        "drums": {
+          "phrases": "soul,pop"
         }
       },
       "tempo": 72
@@ -240,9 +261,44 @@
         "pad": {
           "mute": true,
           "program": 90
+        },
+        "drums": {
+          "phrases": "rock,pop"
         }
       },
       "tempo": 120
+    },
+    {
+      "name": "lofi",
+      "swing": 56,
+      "feel": 16,
+      "tempo": 88,
+      "parts": {
+        "drums": {
+          "phrases": "hiphop"
+        },
+        "bass": {
+          "style": "rootfive",
+          "phrases": "lofi",
+          "program": 39
+        },
+        "keys": {
+          "style": "ballad",
+          "phrases": "lofi",
+          "voicings": "soul,jazz",
+          "mute": false,
+          "program": 5
+        },
+        "arp": {
+          "mute": true,
+          "program": 82
+        },
+        "pad": {
+          "voicings": "soul",
+          "mute": true,
+          "program": 90
+        }
+      }
     },
     {
       "name": "fusion",
@@ -270,6 +326,9 @@
           "voicings": "fusion",
           "mute": false,
           "program": 90
+        },
+        "drums": {
+          "phrases": "funk,latin"
         }
       },
       "tempo": 108

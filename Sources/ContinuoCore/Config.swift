@@ -101,28 +101,40 @@ public let standardJSON = """
     { "name": "keys", "kind": "comp", "style": "stabs",  "out": "continuo", "channel": 3 },
     { "name": "arp",  "kind": "arp",  "style": "broken", "out": "continuo", "channel": 4 },
     { "name": "pad",  "kind": "comp", "style": "pad",    "out": "continuo", "channel": 5,
-      "range": [55, 88], "voices": 5, "complexity": 0.8, "velocity": [45, 70], "mute": true }
+      "range": [55, 88], "voices": 5, "complexity": 0.8, "velocity": [45, 70], "mute": true },
+    { "name": "drums", "kind": "drums", "out": "continuo", "channel": 10 }
   ],
   "scenes": [
     { "name": "funk", "swing": 56, "feel": 16, "parts": {
+        "drums": { "phrases": "funk,soul" },
         "bass": { "style": "funk", "phrases": "soul" }, "keys": { "style": "stabs", "phrases": "soul", "voicings": "soul,fusion", "mute": false },
         "arp": { "style": "broken", "mute": true }, "pad": { "voicings": "soul", "mute": true } } },
     { "name": "house", "swing": 52, "feel": 16, "parts": {
+        "drums": { "phrases": "house,dance" },
         "bass": { "style": "octaves", "phrases": "house" }, "keys": { "style": "offbeat", "phrases": "house", "voicings": "house,soul", "mute": false },
         "arp": { "style": "up16", "mute": true }, "pad": { "voicings": "house", "mute": false } } },
     { "name": "jazz", "swing": 64, "feel": 8, "parts": {
+        "drums": { "phrases": "jazz" },
         "bass": { "style": "walk", "phrases": "jazz" }, "keys": { "style": "charleston", "phrases": "jazz", "voicings": "jazz,solo", "mute": false },
         "arp": { "mute": true }, "pad": { "voicings": "jazz,solo", "mute": true } } },
     { "name": "bossa", "swing": 50, "feel": 16, "parts": {
+        "drums": { "phrases": "latin" },
         "bass": { "style": "bossa" }, "keys": { "style": "bossa", "voicings": "jazz,solo", "mute": false },
         "arp": { "style": "updown8", "density": 0.4, "mute": false }, "pad": { "mute": true } } },
     { "name": "ballad", "swing": 50, "feel": 16, "parts": {
+        "drums": { "phrases": "soul,pop" },
         "bass": { "style": "rootfive", "density": 0.5, "phrases": "soul,jazz" }, "keys": { "style": "ballad", "phrases": "soul,jazz", "voicings": "jazz,soul,solo", "mute": false },
         "arp": { "style": "updown8", "density": 0.5, "mute": true }, "pad": { "voicings": "soul,jazz", "mute": false } } },
     { "name": "drive", "swing": 50, "feel": 16, "parts": {
+        "drums": { "phrases": "rock,pop" },
         "bass": { "style": "pedal", "phrases": "pop" }, "keys": { "style": "gate", "phrases": "pop", "voicings": "pop,fusion", "mute": false },
         "arp": { "style": "random", "mute": true }, "pad": { "mute": true } } },
+    { "name": "lofi", "swing": 56, "feel": 16, "parts": {
+        "drums": { "phrases": "hiphop" },
+        "bass": { "style": "rootfive", "phrases": "lofi" }, "keys": { "style": "ballad", "phrases": "lofi", "voicings": "soul,jazz", "mute": false },
+        "arp": { "mute": true }, "pad": { "voicings": "soul", "mute": true } } },
     { "name": "fusion", "swing": 52, "feel": 16, "parts": {
+        "drums": { "phrases": "funk,latin" },
         "bass": { "style": "funk", "phrases": "fusion" }, "keys": { "style": "funk16", "phrases": "fusion", "voicings": "fusion", "complexity": 0.8, "mute": false },
         "arp": { "mute": true }, "pad": { "voicings": "fusion", "mute": false } } }
   ],

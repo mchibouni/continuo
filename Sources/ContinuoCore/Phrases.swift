@@ -9,7 +9,7 @@
 
 import Foundation
 
-public enum PhraseRole: String, Codable, CaseIterable { case keys, pad, bass, line }
+public enum PhraseRole: String, Codable, CaseIterable { case keys, pad, bass, line, drums }
 
 public struct PhraseNote: Codable {
     public var t: Double     // start, beats from the phrase's start
@@ -50,6 +50,7 @@ public struct Phrase: Codable {
     public var tempo: Double
     public var bars: Int
     public var notes: [PhraseNote]
+    public var changes: Double? = nil   // how often the harmony under it changes, per bar: arranger patterns hold one chord
 }
 
 public struct PhraseBank: Codable {
@@ -202,6 +203,15 @@ public struct PhraseMiner {
         re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil
     }
 
+    /// The General MIDI drum note for a one-sound drum track, from its name ("Hat Open 1", "Kick").
+    static func drumNote(_ name: String) -> Int? {
+        let n = name.lowercased()
+        let table: [(String, Int)] = [("open", 46), ("hat", 42), ("kick", 36), ("clap", 39), ("rim", 37), ("snare", 38),
+                                      ("ride", 51), ("crash", 49), ("cymbal", 49), ("tom", 45), ("conga", 63), ("bongo", 61),
+                                      ("shaker", 70), ("tamb", 54), ("cowbell", 56), ("perc", 75), ("top", 42), ("fill", 38)]
+        return table.first { n.contains($0.0) && !(($0.0 == "open") && !n.contains("hat")) }?.1
+    }
+
     /// Learns the phrases in one file. `section` and `song` come from where the file sits
     /// ("…/MIDTEMPO_GROOVE_95_BPM/VERSE/Variation_02.mid"); each track or channel is a player.
     public mutating func add(_ f: MIDIFile, tag: String, song: String, section: String, name: String, variation: Int = 0) {
@@ -212,13 +222,24 @@ public struct PhraseMiner {
 
         // who plays what
         var groups: [(role: PhraseRole, notes: [MIDINote])] = []
+        var kit: [MIDINote] = []   // every drum of the file, as one drummer on General MIDI notes
         let byPlayer = Dictionary(grouping: f.notes) { $0.track * 16 + $0.channel }
         for key in byPlayer.keys.sorted() {
             let ns = byPlayer[key]!, channel = key % 16, trackName = f.trackNames[key / 16] ?? ""
-            if channel == 9 || PhraseMiner.matches(PhraseMiner.drumNames, trackName) || PhraseMiner.matches(PhraseMiner.fxNames, trackName) { continue }
+            if channel == 9 { kit += ns; continue }
+            if PhraseMiner.matches(PhraseMiner.drumNames, trackName) {
+                if let gm = PhraseMiner.drumNote(trackName) {
+                    kit += ns.map { MIDINote(start: $0.start, length: $0.length, note: gm, velocity: $0.velocity, channel: 9, beat: $0.beat, beats: $0.beats, track: $0.track) }
+                }
+                continue
+            }
+            if PhraseMiner.matches(PhraseMiner.fxNames, trackName) { continue }
             if let prog = f.programs[channel], prog >= 96 { continue }   // sound effects, ethnic, percussive
-            if let role = PhraseMiner.role(ns, name: trackName, program: f.programs[channel]) { groups.append((role, ns)) }
+            // a file of one player named for its bass ("808 Bass Loops/…") is a bass line in whatever octave it's written
+            let hint = byPlayer.count == 1 ? trackName + " " + name : trackName
+            if let role = PhraseMiner.role(ns, name: hint, program: f.programs[channel]) { groups.append((role, ns)) }
         }
+        if kit.count >= 8 { groups.append((.drums, kit.sorted { ($0.beat, $0.note) < ($1.beat, $1.note) })) }
         guard !groups.isEmpty else { return }
         // a lone keyboard part: its left hand's bass line is the bass part's phrase, the rest the keys'
         if groups.count == 1, groups[0].role == .keys || groups[0].role == .pad {
@@ -236,7 +257,7 @@ public struct PhraseMiner {
         }
 
         // the harmony every half bar, from everyone pitched
-        let pitched = groups.flatMap(\.notes)
+        let pitched = groups.filter { $0.role != .drums }.flatMap(\.notes)
         let bassNotes = groups.filter { $0.role == .bass }.flatMap(\.notes)
         var chords: [Chord?] = []
         var last: Chord? = nil
@@ -270,15 +291,18 @@ public struct PhraseMiner {
                 let order = variation * 100 + start / 4
                 let a = Double(start * 4), b = Double((start + length) * 4)
                 let part = ns.filter { $0.beat >= a - 0.06 && $0.beat < b - 0.06 }.sorted { ($0.beat, $0.note) < ($1.beat, $1.note) }
-                guard part.count >= (role == .bass || role == .line ? 4 : 6) else { continue }
+                guard part.count >= (role == .bass || role == .line ? 4 : role == .drums ? 8 : 6) else { continue }
                 var notes: [PhraseNote] = []
-                for n in part {
+                if role == .drums {
+                    notes = part.map { PhraseNote(t: max(0, $0.beat - a), d: $0.beats, v: $0.velocity, p: $0.note, deg: 0, alt: 0, root: 0, to: nil) }
+                }
+                for n in part where role != .drums {
                     guard let c = chord(at: n.beat) else { continue }
                     let j = job(c, mod12(n.note - c.root))
                     notes.append(PhraseNote(t: max(0, n.beat - a), d: n.beats, v: n.velocity, p: n.note, deg: j.deg, alt: j.alt, root: c.root, to: nil))
                 }
                 // chromatic notes lead into a note a step away, soon after
-                for i in notes.indices {
+                for i in notes.indices where role != .drums {
                     guard let c = chord(at: notes[i].t + a), !c.palette(1).contains(mod12(notes[i].p)) else { continue }
                     if let k = notes.indices.first(where: { k in
                         k != i && notes[k].t > notes[i].t + 0.01 && notes[k].t - notes[i].t <= 1 && abs(notes[k].p - notes[i].p) <= 2
@@ -292,9 +316,13 @@ public struct PhraseMiner {
                 h.combine(song); h.combine(role.rawValue)
                 for n in notes { h.combine(Int(n.t * 48)); h.combine(n.p) }
                 guard seen.insert(h.finalize()).inserted else { continue }   // a loop repeated in the song
+                // how often the harmony under it changes, per bar
+                let windows = (start * 2)..<min(chords.count, (start + length) * 2)
+                let changes = zip(windows.dropFirst(), windows).filter { chords[$0.0] != chords[$0.1] }.count
                 phrases.append(Phrase(tag: tag, role: role, song: song, section: section, order: order,
                                       name: name + (slices.count > 1 ? " bars \(start + 1)-\(start + length)" : ""),
-                                      tempo: f.tempo, bars: length, notes: notes))
+                                      tempo: f.tempo, bars: length, notes: notes,
+                                      changes: role == .drums ? nil : Double(changes) / Double(length)))
             }
         }
     }
@@ -332,7 +360,7 @@ extension Engine {
     func phraseCandidates(_ p: Part, wide: Bool = false) -> [Int] {
         guard let bank = phraseBank, let setting = p.phrases else { return [] }
         let tags = setting == "any" ? nil : Set(setting.split(separator: ",").map(String.init))
-        let c = bank.candidates(p.phraseRole, tags: tags)
+        let c = bank.candidates(p.phraseRole, tags: tags).filter { p.kind != .drums || bank.phrases[$0].section != "fill" }
         if wide && p.kind == .comp {
             let others: [PhraseRole] = p.phraseRole == .pad ? [.keys, .line] : [.pad, .line]
             return c + others.flatMap { bank.candidates($0, tags: tags) }
@@ -378,16 +406,22 @@ extension Engine {
             if !list.isEmpty && (list.count > 1 || bandPlays < 2) { order = list.first { $0 > bandOrder } ?? list.first }
         }
         if order == nil {
-            var cover: [String: Int] = [:], tempoOf: [String: Double] = [:]
+            var cover: [String: Int] = [:], tempoOf: [String: Double] = [:], changes: [String: [Double]] = [:]
             for i in members {
                 for j in cands[i]! {
                     tempoOf[ph[j].song] = ph[j].tempo
+                    if let c = ph[j].changes { changes[ph[j].song, default: []].append(c) }
                 }
                 for song in Set(cands[i]!.map { ph[$0].song }) { cover[song, default: 0] += parts[i].kind == .arp ? 1 : 2 }
             }
             guard let best = cover.values.max() else { bandSong = nil; return }
+            // near the band's tempo, and holding its chords like an arranger pattern rather than running through changes
+            func score(_ song: String) -> Double {
+                let c = changes[song].map { $0.reduce(0, +) / Double($0.count) } ?? 0
+                return 3 * abs(log(tempo / tempoOf[song]!)) + 0.4 * max(0, c - 0.5)
+            }
             let ranked = cover.filter { $0.value == best }.keys
-                .sorted { (abs(log(tempo / tempoOf[$0]!)), $0) < (abs(log(tempo / tempoOf[$1]!)), $1) }
+                .sorted { (score($0), $0) < (score($1), $1) }
                 .filter { $0 != bandSong || cover.count == 1 }
             let top = Array(ranked.prefix(8))
             guard !top.isEmpty else { return }
@@ -449,6 +483,20 @@ extension Engine {
         startPhrase(i, pick, at: k)
     }
 
+    /// A drum fill from the drummer's styles, near the band's tempo.
+    func chooseFill(_ p: Part) -> Int? {
+        guard let bank = phraseBank, let setting = p.phrases else { return nil }
+        let tags = setting == "any" ? nil : Set(setting.split(separator: ",").map(String.init))
+        var fills = bank.candidates(.drums, tags: tags).filter { bank.phrases[$0].section == "fill" && bank.phrases[$0].bars <= 2 }
+        // the groove's own style first: a funk groove gets a funk fill
+        if let cur = p.phrase, case let same = fills.filter({ bank.phrases[$0].tag == bank.phrases[cur].tag }), !same.isEmpty { fills = same }
+        let ranked = fills.sorted { (abs(log(tempo / bank.phrases[$0].tempo)), $0) < (abs(log(tempo / bank.phrases[$1].tempo)), $1) }
+        let top = Array(ranked.prefix(12))
+        guard !top.isEmpty else { return nil }
+        return top[min(top.count - 1, Int(rand(p.seed, k(p), 9) * Double(top.count)))]
+    }
+    private func k(_ p: Part) -> Int { p.songsPlayed * 31 + p.phrasePlays }
+
     func startPhrase(_ i: Int, _ pick: Int, at k: Int) {
         guard let bank = phraseBank else { return }
         let p = parts[i], phrase = bank.phrases[pick]
@@ -467,8 +515,14 @@ extension Engine {
         let p = parts[i]
         guard let bank = phraseBank else { return }
         let banded = p.phraseSong != nil && p.phraseSong == bandSong
+        // a drummer plays a fill in the last bar before the band's next take
+        if p.kind == .drums, !p.filling, bandSong != nil, bandBars >= 2, k == bandStep + (bandBars - 1) * stepsPerBar, let fill = chooseFill(p) {
+            startPhrase(i, fill, at: k - (bank.phrases[fill].bars - 1) * stepsPerBar)   // the fill's last bar lands here
+            p.filling = true
+        }
         if let cur = p.phrase, k >= p.phraseStep + bank.phrases[cur].bars * stepsPerBar {
-            if banded { startPhrase(i, cur, at: k) } else { nextPhrase(i, at: k) }   // a short take repeats until the band moves on
+            if p.filling { p.filling = false; nextPhrase(i, at: k) }
+            else if banded { startPhrase(i, cur, at: k) } else { nextPhrase(i, at: k) }   // a short take repeats until the band moves on
         }
         if p.phrase == nil {
             guard k % stepsPerBar == 0 else { return }   // phrases start on a bar
@@ -476,7 +530,9 @@ extension Engine {
         }
         guard let cur = p.phrase else { return }
         let phrase = bank.phrases[cur], step = k - p.phraseStep
-        for j in p.phraseSteps[step] ?? [] where phrase.notes[j].v >= p.phraseFloor {
+        // density drops the softest notes, and a chromatic step goes with the note it leads into
+        func kept(_ j: Int) -> Bool { phrase.notes[j].v >= p.phraseFloor && (phrase.notes[j].to.map { phrase.notes[$0].v >= p.phraseFloor } ?? true) }
+        for j in p.phraseSteps[step] ?? [] where kept(j) {
             let due = stepTime(k) + (phrase.notes[j].t * 4 - Double(step)) * stepDuration
             heap.push(due, .phrase(part: i, phrase: cur, note: j, due: due))
         }
@@ -484,8 +540,21 @@ extension Engine {
 
     /// A phrase note over the chord being held, folded into the part's range. A bass lands on
     /// the chord's own bass note with its first note after a change, as a bass player does.
-    func placed(_ p: Part, _ phrase: Phrase, _ j: Int, _ chord: Chord, landing: Bool = false) -> Int? {
-        if asRecorded { return phrase.notes[j].p }
+    func placed(_ p: Part, _ phrase: Phrase, _ j: Int, _ chord: Chord, landing: Bool = false, depth: Int = 0) -> Int? {
+        if asRecorded || p.kind == .drums { return phrase.notes[j].p }   // drums don't follow chords
+        // a chromatic step leads into its note wherever that note lands, octave folding and all; a step
+        // across the bar line leads into the chord the player is expected to change to (a bass, into its bass
+        // note), and with no idea what that is, it's left out rather than aimed at the wrong chord
+        if let to = phrase.notes[j].to, to != j, depth < 4 {
+            let crosses = Int(phrase.notes[to].t / 4) > Int(phrase.notes[j].t / 4)
+            var target = chord
+            if crosses {
+                guard let next = expectedNext() else { return nil }
+                target = next
+            }
+            guard let n = placed(p, phrase, to, target, landing: crosses && p.kind == .bass, depth: depth + 1) else { return nil }
+            return n + phrase.notes[j].alt
+        }
         var n = phrase.place(j, over: chord, offset: p.phraseOffset)
         if landing {
             n += mod12(chord.bass - n + 6) - 6
@@ -539,7 +608,7 @@ extension Engine {
     /// A chord change under a phrase: what's still sounding moves to its place in the new chord.
     func rephrase(_ i: Int, at t: Double) {
         let p = parts[i]
-        guard !p.mute, !asRecorded, let chord, let bank = phraseBank else { return }
+        guard !p.mute, !asRecorded, p.kind != .drums, let chord, let bank = phraseBank else { return }
         if p.kind == .bass {
             // a bass plays again on a change: what it holds ends, and unless its line has a note
             // coming right away, it lands the new chord's bass note for the rest of that note

@@ -51,6 +51,7 @@ public final class Part {
     public internal(set) var phraseSong: String? = nil
     var phraseSteps: [Int: [Int]] = [:]
     var landed: Chord? = nil   // bass: the chord its last note landed on
+    var filling = false        // drums: playing a fill into the band's next take
     var sounding: [(key: Int, token: Int, phrase: Int, note: Int, on: Double, off: Double, velocity: Int)] = []
 
     var counter = 0, loopIndex = -1
@@ -61,13 +62,13 @@ public final class Part {
 
     init(_ spec: PartSpec, name: String, kind: Kind) {
         (self.spec, self.name, self.kind) = (spec, name, kind)
-        style = styles.first { $0.kind == kind }!
+        style = styles.first { $0.kind == kind } ?? styles[0]
         reset()
     }
 
     /// The defaults for its kind, before the config and a scene say otherwise.
     func reset() {
-        style = styles.first { $0.kind == kind }!
+        style = styles.first { $0.kind == kind } ?? styles[0]
         density = 0.75; accent = 0.5; vary = 0; humanize = 4; gate = nil; swing = nil; feel = nil
         octave = 0; loop = 2; mute = false; legato = false; program = nil; voicings = "any"; phrases = nil
         seed = name.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
@@ -80,6 +81,9 @@ public final class Part {
             (mono, retrigger, rootless) = (false, true, true)
         case .arp:
             (lo, hi, velLo, velHi, complexity, span, density) = (60, 96, 50, 95, 0.5, 2, 0.8)
+            (mono, retrigger, rootless) = (false, false, false)
+        case .drums:   // General MIDI drum notes, the drummer's own velocities
+            (lo, hi, velLo, velHi, density) = (0, 127, 1, 127, 1)
             (mono, retrigger, rootless) = (false, false, false)
         }
     }
@@ -95,6 +99,7 @@ public final class Part {
         switch kind {
         case .bass: return .bass
         case .arp: return .line
+        case .drums: return .drums
         case .comp: return style.name == "pad" ? .pad : .keys
         }
     }
@@ -181,6 +186,8 @@ public final class Engine {
     public internal(set) var section = "verse"
     /// The groove or song the phrase parts play together, and which take of it, since when, for how long.
     public internal(set) var bandSong: String? = nil
+    /// The chords as they came, and the step each came on: what the player does next, they did before.
+    var chordLog: [(chord: Chord, step: Int)] = []
     var bandOrder = -1, bandStep = 0, bandBars = 0, bandPlays = 0, bandSongs = 0
 
     public private(set) var tempo = 100.0, swing = 50.0, feel = 16, stepsPerBar = 16
@@ -382,6 +389,7 @@ public final class Engine {
         }
         for (i, p) in parts.enumerated() where !p.mute {
             if p.phrases != nil && phraseBank != nil { schedulePhrase(i, k); continue }
+            if p.kind == .drums { continue }   // drums have no pattern of their own
             guard let on = p.style.onsets[k % p.style.steps] else { continue }
             var w = Double(on.weight)
             if p.vary > 0 { w += (rand(p.seed, k % (p.loop * stepsPerBar), 1) - 0.5) * 4 * p.vary }
@@ -512,6 +520,8 @@ public final class Engine {
                 return s.count >= 2 ? s : Array(full.suffix(2))
             default: return full
             }
+        case .drums:
+            return []
         case .arp:
             // from the chord's root up, so an up pattern starts where the chord does
             let r = p.range, bottom = r.lowerBound + mod12(chord.root - r.lowerBound)
@@ -601,7 +611,9 @@ public final class Engine {
     }
 
     func evaluate(at t: Double) {
-        guard let c = detectChord(held.values.flatMap { $0 }) else { return }
+        guard var c = detectChord(held.values.flatMap { $0 }) else { return }
+        // one key, or a root and its fifth, is a major chord, as on an arranger keyboard
+        if c.q.suffix == "5", let major = qualities.firstIndex(where: { $0.suffix == "" }) { c = Chord(root: c.root, quality: major, bass: c.bass) }
         gated = true
         setChord(c, at: t)
     }
@@ -615,7 +627,19 @@ public final class Engine {
             if autoStart { start(at: t) }
             return
         }
+        chordLog.append((c, nextStep))
         for i in parts.indices { rerender(i, at: t) }
+    }
+
+    /// The chord the player will likely change to next, once the one they're holding has lasted as
+    /// long as it did last time they played it (within a bar): what followed it then.
+    func expectedNext() -> Chord? {
+        guard let last = chordLog.last, chordLog.count >= 3 else { return nil }
+        for i in stride(from: chordLog.count - 2, through: 0, by: -1) where chordLog[i].chord == last.chord && i + 1 < chordLog.count - 1 {
+            let lasted = chordLog[i + 1].step - chordLog[i].step
+            return nextStep - last.step >= lasted - stepsPerBar ? chordLog[i + 1].chord : nil
+        }
+        return nil
     }
 
     // MARK: transport
@@ -626,6 +650,7 @@ public final class Engine {
         (anchorTime, anchorStep, nextStep) = (t, 0, 0)
         for p in parts { (p.counter, p.loopIndex, p.last, p.lastNote, p.voicing) = (0, -1, nil, nil, []); p.clearPhrase() }
         (bandSong, bandOrder, bandPlays) = (nil, -1, 0)
+        chordLog = chord.map { [($0, 0)] } ?? []
         for i in parts.indices { sendProgram(i, at: t) }
         for o in clockOutputs { sink.send([0xFA], output: o, at: t, part: -1) }
         onLog("start, \(fmt(tempo)) BPM")

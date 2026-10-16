@@ -7,7 +7,7 @@ import ContinuoCore
 
 final class GeneralMIDI {
     // GM programs (1-128) for parts that don't name one: finger bass, electric piano, saw lead
-    static let defaults: [Kind: Int] = [.bass: 34, .comp: 5, .arp: 82]
+    static let defaults: [Kind: Int] = [.bass: 34, .comp: 5, .arp: 82, .drums: 1]   // drums play channel 10's kit whatever the program
 
     let engine = AVAudioEngine()
     let synth = AVAudioUnitMIDIInstrument(audioComponentDescription: AudioComponentDescription(
