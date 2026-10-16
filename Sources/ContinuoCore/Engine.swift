@@ -174,6 +174,9 @@ public final class Engine {
     public var bank: VoicingBank? = nil
     /// Players' phrases, for parts set to play them.
     public var phraseBank: PhraseBank? = nil
+    /// Phrases exactly as the players played them, in their own key, ignoring the chords: for
+    /// hearing the source material by itself.
+    public var asRecorded = false
     /// The song section phrase parts play: verse, chorus, intro, bridge…
     public internal(set) var section = "verse"
     /// The groove or song the phrase parts play together, and which take of it, since when, for how long.

@@ -485,6 +485,7 @@ extension Engine {
     /// A phrase note over the chord being held, folded into the part's range. A bass lands on
     /// the chord's own bass note with its first note after a change, as a bass player does.
     func placed(_ p: Part, _ phrase: Phrase, _ j: Int, _ chord: Chord, landing: Bool = false) -> Int? {
+        if asRecorded { return phrase.notes[j].p }
         var n = phrase.place(j, over: chord, offset: p.phraseOffset)
         if landing {
             n += mod12(chord.bass - n + 6) - 6
@@ -531,7 +532,7 @@ extension Engine {
     /// A chord change under a phrase: what's still sounding moves to its place in the new chord.
     func rephrase(_ i: Int, at t: Double) {
         let p = parts[i]
-        guard !p.mute, let chord, let bank = phraseBank else { return }
+        guard !p.mute, !asRecorded, let chord, let bank = phraseBank else { return }
         if p.kind == .bass {
             // a bass plays again on a change: what it holds ends, and unless its line has a note
             // coming right away, it lands the new chord's bass note for the rest of that note

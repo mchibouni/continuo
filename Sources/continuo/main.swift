@@ -14,6 +14,7 @@ continuo render <chords>    rehearse a progression silently: bar-by-bar notes, c
                             --late <ms> (the player's timing, negative = early) --roll <ms between a chord's notes, 4>
                             --audio <file.m4a> (render on the built-in General MIDI synth) --json <file>
                             --sounds <file.json> renders --audio through instrument plugins (see Sounds.swift)
+                            --as-recorded plays the phrases exactly as recorded, in their own key, ignoring the chords
 continuo ctl <command>      talk to the running band:
     start | stop | panic | status
     tempo <bpm> | swing <50-75> | feel <8|16>
@@ -152,8 +153,23 @@ case "render":
     let scene = option("--scene"), out = option("--out"), audio = option("--audio"), json = option("--json"), section = option("--section")
     let soundsPath = option("--sounds")
     let bars = Int(option("--bars") ?? "1") ?? 1, loops = Int(option("--loops") ?? "1") ?? 1
-    let verbose = args.contains("--verbose")
-    args.removeAll { $0 == "--verbose" }
+    let verbose = args.contains("--verbose"), asRecorded = args.contains("--as-recorded")
+    args.removeAll { $0 == "--verbose" || $0 == "--as-recorded" }
+    if asRecorded {   // only the phrase parts: everything else follows chords the phrases weren't played over
+        let base = config.parts
+        for i in config.parts.indices where config.parts[i].phrases == nil { config.parts[i].mute = true }
+        config.scenes = config.scenes?.map { s in
+            var s = s, parts = s.parts ?? [:]
+            for b in base {
+                guard let name = b.name else { continue }
+                var o = parts[name] ?? (try! JSONDecoder().decode(PartSpec.self, from: Data("{}".utf8)))
+                o.mute = (o.phrases ?? b.phrases) == nil || o.phrases == "off"
+                parts[name] = o
+            }
+            s.parts = parts
+            return s
+        }
+    }
     let late = (Double(option("--late") ?? "0") ?? 0) / 1000
     let roll = (Double(option("--roll") ?? "4") ?? 4) / 1000
     if let t = option("--tempo").flatMap(Double.init) { config.tempo = t }
@@ -163,7 +179,7 @@ case "render":
     do {
         let r = try rehearse(config, chords: chords, barsPerChord: bars, loops: loops, scene: scene, late: late, roll: roll,
                              bank: loadBank(), phrases: loadPhrases(), section: section,
-                             log: verbose ? { print("  · \($0)") } : nil)
+                             log: verbose ? { print("  · \($0)") } : nil, asRecorded: asRecorded)
         print(r.text)
         print("\n\(r.engine.corrections) hits re-voiced after they started (a chord change that came late)")
         let problems = r.problems

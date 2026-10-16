@@ -29,7 +29,7 @@ public struct Rehearsal {
 public func rehearse(_ config: Config, chords: [Chord], barsPerChord: Int = 1, loops: Int = 1,
                      scene: String? = nil, late: Double = 0, roll: Double = 0.004,
                      bank: VoicingBank? = nil, phrases: PhraseBank? = nil, section: String? = nil,
-                     log: ((String) -> Void)? = nil) throws -> Rehearsal {
+                     log: ((String) -> Void)? = nil, asRecorded: Bool = false) throws -> Rehearsal {
     var config = config
     config.inputs = [InputSpec(port: "rehearsal", channel: nil, zone: nil)]
     config.autoStart = true
@@ -38,6 +38,7 @@ public func rehearse(_ config: Config, chords: [Chord], barsPerChord: Int = 1, l
     engine.bank = bank
     engine.phraseBank = phrases
     if let log { engine.onLog = log }
+    engine.asRecorded = asRecorded
     if let section { engine.section = section }
     var taken: [(time: Double, chord: Chord)] = []
     engine.onChord = { taken.append(($0, $1)) }
